@@ -30,7 +30,6 @@ function toPublicAppConfig(doc) {
     app_footer_text: doc.app_footer_text ?? "",
     payment_methods: doc.payment_methods ?? [],
     payment_gateways,
-    documents: doc.documents ?? [],
     updatedAt: doc.updatedAt,
   };
 }

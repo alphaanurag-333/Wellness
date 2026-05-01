@@ -7,7 +7,7 @@ const { deleteUploadFileByPublicUrl } = require("../../utils/deleteUploadFile");
 const { publicUploadPathFromFile } = require("../../utils/publicUploadPath");
 
 const ALLOWED_STATUS = new Set(["active", "inactive"]);
-const ALLOWED_AUDIENCE_TYPES = new Set(["users", "vendors", "deliveryPartners"]);
+const ALLOWED_AUDIENCE_TYPES = new Set(["users", "coaches"]);
 const UPLOAD_FOLDER = "notification";
 
 function normalizeRequired(value) {
@@ -91,6 +91,7 @@ exports.createNotification = asyncHandler(async (req, res) => {
       message,
       image,
       status,
+      sentAt: new Date(),
     });
 
     res.status(201).json({ message: "Notification created", notification });

@@ -31,7 +31,6 @@ const SETTINGS_TABS = [
   // { id: "content", label: "Content" },
   { id: "payment-methods", label: "Payment methods" },
   // { id: "payment-gateways", label: "Payment gateways" },
-  // { id: "documents", label: "Documents" },
 ];
 
 const PAYMENT_METHOD_DEFS = [
@@ -45,17 +44,6 @@ const GATEWAY_DEFS = [
   { provider: "stripe", title: "Stripe" },
   { provider: "paypal", title: "PayPal" },
   { provider: "paytm", title: "Paytm" },
-];
-
-const DOCUMENT_DEFS = [
-  { type: "Aadhar Card", label: "Aadhar card", hint: "Vendor KYC" },
-  { type: "Pan Card", label: "PAN card", hint: "Vendor KYC" },
-  { type: "Bank Details", label: "Bank details", hint: "Payout / settlement" },
-];
-
-const COMMISSION_DEFS = [
-  { type: "Vendor", label: "Vendor commission", hint: "Platform percentage on vendor sales (0–100%)." },
-  { type: "VenueVendor", label: "Venue vendor commission", hint: "Platform percentage for venue-based vendors (0–100%)." },
 ];
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -85,14 +73,12 @@ function isValidHttpUrl(value) {
   }
 }
 
-function validateSettingsForm({ scalars, paymentGateways, commissions }) {
+function validateSettingsForm({ scalars, paymentGateways }) {
   const appName = (scalars.app_name || "").trim();
   const appEmail = (scalars.app_email || "").trim();
   const appMobile = (scalars.app_mobile || "").trim();
-  const address = (scalars.address || "").trim();
   const latitude = (scalars.latitude || "").trim();
   const longitude = (scalars.longitude || "").trim();
-  const footerText = (scalars.app_footer_text || "").trim();
 
   if (!appName) return { tab: "general", text: "App name is required." };
   if (!appEmail) return { tab: "general", text: "Support email is required." };
@@ -100,24 +86,16 @@ function validateSettingsForm({ scalars, paymentGateways, commissions }) {
   if (!appMobile) return { tab: "general", text: "Support mobile is required." };
   if (!PHONE_REGEX.test(appMobile)) return { tab: "general", text: "Support mobile must be exactly 10 digits." };
 
-  if (!address) return { tab: "location", text: "Address is required." };
-  if (!latitude) return { tab: "location", text: "Latitude is required." };
-  if (!longitude) return { tab: "location", text: "Longitude is required." };
-  const lat = Number.parseFloat(latitude);
-  const lng = Number.parseFloat(longitude);
-  if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
-    return { tab: "location", text: "Latitude must be a valid number between -90 and 90." };
-  }
-  if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
-    return { tab: "location", text: "Longitude must be a valid number between -180 and 180." };
-  }
-
-  if (!footerText) return { tab: "general", text: "Footer text is required." };
-
-  for (const c of commissions) {
-    const p = Number(c.percentage);
-    if (!Number.isFinite(p) || p < 0 || p > 100) {
-      return { tab: "general", text: `${c.label} must be between 0 and 100.` };
+  if (latitude || longitude) {
+    if (!latitude) return { tab: "location", text: "Enter both latitude and longitude, or clear both." };
+    if (!longitude) return { tab: "location", text: "Enter both latitude and longitude, or clear both." };
+    const lat = Number.parseFloat(latitude);
+    const lng = Number.parseFloat(longitude);
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+      return { tab: "location", text: "Latitude must be a valid number between -90 and 90." };
+    }
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+      return { tab: "location", text: "Longitude must be a valid number between -180 and 180." };
     }
   }
 
@@ -197,35 +175,6 @@ function normalizePaymentMethods(arr) {
   }));
 }
 
-function normalizeDocuments(arr) {
-  const map = Object.fromEntries(
-    (Array.isArray(arr) ? arr : [])
-      .filter(Boolean)
-      .map((d) => [d.type, d]),
-  );
-  return DOCUMENT_DEFS.map(({ type, label, hint }) => ({
-    type,
-    label,
-    hint,
-    isActive: map[type] != null ? !!map[type].isActive : true,
-  }));
-}
-
-function normalizeCommissions(arr) {
-  const map = Object.fromEntries(
-    (Array.isArray(arr) ? arr : [])
-      .filter(Boolean)
-      .map((c) => [c.type, c]),
-  );
-  return COMMISSION_DEFS.map(({ type, label, hint }) => {
-    const row = map[type];
-    let pct = row?.percentage;
-    if (pct == null || !Number.isFinite(Number(pct))) pct = 0;
-    pct = Math.min(100, Math.max(0, Number(pct)));
-    return { type, label, hint, percentage: pct };
-  });
-}
-
 function methodsForApi(list) {
   return list.map(({ type, isActive }) => ({ type, isActive }));
 }
@@ -235,17 +184,6 @@ function gatewaysForApi(list) {
     provider,
     isActive,
     credentials: { ...credentials },
-  }));
-}
-
-function documentsForApi(list) {
-  return list.map(({ type, isActive }) => ({ type, isActive }));
-}
-
-function commissionsForApi(list) {
-  return list.map(({ type, percentage }) => ({
-    type,
-    percentage: Math.min(100, Math.max(0, Number(percentage) || 0)),
   }));
 }
 
@@ -280,8 +218,6 @@ export function BusinessSetting() {
   );
   const [paymentMethods, setPaymentMethods] = useState(() => normalizePaymentMethods([]));
   const [paymentGateways, setPaymentGateways] = useState(() => normalizeGateways([]));
-  const [documents, setDocuments] = useState(() => normalizeDocuments([]));
-  const [commissions, setCommissions] = useState(() => normalizeCommissions([]));
 
   const [adminLogoFile, setAdminLogoFile] = useState(null);
   const [userLogoFile, setUserLogoFile] = useState(null);
@@ -303,8 +239,6 @@ export function BusinessSetting() {
       setScalars(Object.fromEntries(SCALAR_KEYS.map((k) => [k, ""])));
       setPaymentMethods(normalizePaymentMethods([]));
       setPaymentGateways(normalizeGateways([]));
-      setDocuments(normalizeDocuments([]));
-      setCommissions(normalizeCommissions([]));
       setAdminLogoPreview("");
       setUserLogoPreview("");
       setFaviconPreview("");
@@ -318,8 +252,6 @@ export function BusinessSetting() {
     setScalars(next);
     setPaymentMethods(normalizePaymentMethods(doc.payment_methods));
     setPaymentGateways(normalizeGateways(doc.payment_gateways));
-    setDocuments(normalizeDocuments(doc.documents));
-    setCommissions(normalizeCommissions(doc.commissions));
     const a = doc.admin_logo ? mediaUrl(doc.admin_logo) : "";
     const u = doc.user_logo ? mediaUrl(doc.user_logo) : "";
     const f = doc.favicon ? mediaUrl(doc.favicon) : "";
@@ -377,8 +309,6 @@ export function BusinessSetting() {
     }
     fd.append("payment_methods", JSON.stringify(methodsForApi(paymentMethods)));
     fd.append("payment_gateways", JSON.stringify(gatewaysForApi(paymentGateways)));
-    fd.append("documents", JSON.stringify(documentsForApi(documents)));
-    fd.append("commissions", JSON.stringify(commissionsForApi(commissions)));
     if (adminLogoFile) fd.append("admin_logo", adminLogoFile);
     if (userLogoFile) fd.append("user_logo", userLogoFile);
     if (faviconFile) fd.append("favicon", faviconFile);
@@ -399,7 +329,7 @@ export function BusinessSetting() {
       });
       return;
     }
-    const validationError = validateSettingsForm({ scalars, paymentGateways, commissions });
+    const validationError = validateSettingsForm({ scalars, paymentGateways });
     if (validationError) {
       setTab(validationError.tab);
       await Swal.fire({ icon: "error", title: "Validation error", text: validationError.text });
@@ -566,7 +496,7 @@ export function BusinessSetting() {
                       <span className="settings-char-count">{charCount(scalars.app_detail, LIMITS.appDetail)}</span>
                     </div>
                     <div className="user-field ">
-                      <span className="user-field__label">Footer text <span className="required-dot">*</span></span>
+                      <span className="user-field__label">Footer text</span>
                       <textarea
                         className="user-field__input"
                         rows={3}
@@ -650,12 +580,12 @@ export function BusinessSetting() {
 
               {t.id === "location" && (
                 <>
-                  <p className="settings-panel-hint">Physical address and map coordinates (strings as stored by the API).</p>
+                  <p className="settings-panel-hint">Optional address and coordinates (strings). Map preview appears when both latitude and longitude are valid.</p>
                   <div className="settings-location">
                     <div className="user-form__grid settings-location__form">
                  
                       <div className="user-field">
-                        <span className="user-field__label">Latitude <span className="required-dot">*</span></span>
+                        <span className="user-field__label">Latitude</span>
                         <input
                           className="user-field__input"
                           value={scalars.latitude}
@@ -665,7 +595,7 @@ export function BusinessSetting() {
                         <span className="settings-char-count">{charCount(scalars.latitude, LIMITS.latLng)}</span>
                       </div>
                       <div className="user-field">
-                        <span className="user-field__label">Longitude <span className="required-dot">*</span></span>
+                        <span className="user-field__label">Longitude</span>
                         <input
                           className="user-field__input"
                           value={scalars.longitude}
@@ -676,7 +606,7 @@ export function BusinessSetting() {
                       </div>
 
                       <div className="user-field ">
-                        <span className="user-field__label">Address <span className="required-dot">*</span></span>
+                        <span className="user-field__label">Address</span>
                         <textarea
                           className="user-field__input"
                           rows={3}
@@ -760,7 +690,7 @@ export function BusinessSetting() {
 
               {t.id === "content" && (
                 <>
-                  <p className="settings-panel-hint">Long-form copy shown in app or footer areas.</p>
+                  <p className="settings-panel-hint">Long-form copy (e.g. about or legal summary) for the app_details field.</p>
                   <div className="user-form__grid">
                     <div className="user-field user-field--full">
                       <span className="user-field__label">App details</span>
@@ -772,17 +702,6 @@ export function BusinessSetting() {
                         maxLength={LIMITS.appDetails}
                       />
                       <span className="settings-char-count">{charCount(scalars.app_details, LIMITS.appDetails)}</span>
-                    </div>
-                    <div className="user-field ">
-                      <span className="user-field__label">Footer text <span className="required-dot">*</span></span>
-                      <textarea
-                        className="user-field__input"
-                        rows={3}
-                        value={scalars.app_footer_text}
-                        onChange={(e) => setScalars((s) => ({ ...s, app_footer_text: e.target.value }))}
-                        maxLength={LIMITS.footerText}
-                      />
-                      <span className="settings-char-count">{charCount(scalars.app_footer_text, LIMITS.footerText)}</span>
                     </div>
                   </div>
                 </>
@@ -942,34 +861,6 @@ export function BusinessSetting() {
                 </>
               )}
 
-              {/* {t.id === "documents" && (
-                <>
-                  <p className="settings-panel-hint">
-                    Control which document types vendors can submit for verification.
-                  </p>
-                  <div className="settings-toggle-list">
-                    {documents.map((d) => (
-                      <div key={d.type} className="settings-toggle-row">
-                        <div>
-                          <span className="settings-toggle-row__label">{d.label}</span>
-                          <span className="settings-toggle-row__hint">
-                            {d.hint} · <code>{d.type}</code>
-                          </span>
-                        </div>
-                        <SettingsToggle
-                          id={`${baseId}-doc-${d.type.replace(/\s+/g, "-")}`}
-                          checked={d.isActive}
-                          onChange={(next) =>
-                            setDocuments((prev) =>
-                              prev.map((x) => (x.type === d.type ? { ...x, isActive: next } : x)),
-                            )
-                          }
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )} */}
             </div>
           );
         })}

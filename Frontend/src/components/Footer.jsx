@@ -1,7 +1,7 @@
 import { useSelector } from "react-redux";
 import { selectAppFooterText } from "../store/appConfigSelectors.js";
 
-const DEFAULT_FOOTER_TEXT = "© 2026 Oho E-Bazaar. All rights reserved.";
+const DEFAULT_FOOTER_TEXT = "© 2026 Wellness. All rights reserved.";
 
 export function Footer() {
   const footerText = useSelector(selectAppFooterText);

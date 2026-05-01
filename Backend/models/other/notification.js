@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 const STATUS = ["active", "inactive"];
-const AUDIENCE_TYPES = ["users", "vendors", "deliveryPartners"];
+const AUDIENCE_TYPES = ["users", "coaches"];
 
 const notificationSchema = new mongoose.Schema(
   {

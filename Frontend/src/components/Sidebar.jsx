@@ -85,7 +85,7 @@ export function Sidebar({ id = "admin-sidebar", onNavigate, drawerOpen, desktopC
           )}
         </span>
         <div className="admin-sidebar__brand-text">
-          <div className="admin-sidebar__title">{appDisplayName || "OhoE"}</div>
+          <div className="admin-sidebar__title">{appDisplayName || "Wellness"}</div>
           <div className="admin-sidebar__subtitle">Admin</div>
         </div>
       </div>

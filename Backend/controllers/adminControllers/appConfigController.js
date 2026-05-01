@@ -50,8 +50,6 @@ exports.createAppConfig = asyncHandler(async (req, res) => {
     app_footer_text,
     payment_methods,
     payment_gateways,
-    documents,
-    commissions,
   } = req.body;
 
   if (!app_name || !app_email || !app_mobile) {
@@ -63,7 +61,7 @@ exports.createAppConfig = asyncHandler(async (req, res) => {
 
   const doc = await AppConfig.create({
     app_name,
-    app_email,
+    app_email: String(app_email).trim().toLowerCase(),
     app_mobile,
     app_detail: app_detail ?? "",
     address: address ?? "",
@@ -77,8 +75,6 @@ exports.createAppConfig = asyncHandler(async (req, res) => {
     app_footer_text: app_footer_text ?? "",
     payment_methods: parseJSON(payment_methods, undefined),
     payment_gateways: parseJSON(payment_gateways, undefined),
-    documents: parseJSON(documents, undefined),
-    commissions: parseJSON(commissions, undefined),
     admin_logo: fileUrl("admin_logo"),
     user_logo: fileUrl("user_logo"),
     favicon: fileUrl("favicon"),
@@ -114,7 +110,7 @@ exports.updateAppConfig = asyncHandler(async (req, res) => {
 
   for (const field of scalarFields) {
     if (req.body[field] !== undefined) {
-      config[field] = req.body[field];
+      config[field] = field === "app_email" ? String(req.body[field]).trim().toLowerCase() : req.body[field];
     }
   }
 
@@ -123,12 +119,6 @@ exports.updateAppConfig = asyncHandler(async (req, res) => {
   }
   if (req.body.payment_gateways !== undefined) {
     config.payment_gateways = parseJSON(req.body.payment_gateways, config.payment_gateways);
-  }
-  if (req.body.documents !== undefined) {
-    config.documents = parseJSON(req.body.documents, config.documents);
-  }
-  if (req.body.commissions !== undefined) {
-    config.commissions = parseJSON(req.body.commissions, config.commissions);
   }
 
   const assignUploaded = (field) => {

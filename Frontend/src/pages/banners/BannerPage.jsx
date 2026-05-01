@@ -11,75 +11,38 @@ import {
 } from "../../api/bannerController.js";
 import { logout } from "../../store/authSlice.js";
 import { mediaUrl } from "../../media.js";
-import {City } from 'country-state-city'
 
 function emptyForm() {
   return {
-    mode: "global",
     title: "",
-    startDate: "",
-    endDate: "",
-    cities: "",
     status: "active",
   };
 }
 
-const TITLE_MAX_LEN = 60;
-const CITY_SEARCH_MAX_LEN = 40;
+const TITLE_MAX_LEN = 200;
 const IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 const LIST_LIMIT = 10;
 
 function sanitizeTitleInput(value) {
-  return String(value ?? "")
-    .replace(/[^A-Za-z0-9 ]+/g, "")
-    .replace(/\s+/g, " ")
-    .slice(0, TITLE_MAX_LEN);
-}
-
-function sanitizeCitySearchInput(value) {
-  return String(value ?? "")
-    .replace(/[^A-Za-z ]+/g, "")
-    .replace(/\s+/g, " ")
-    .slice(0, CITY_SEARCH_MAX_LEN);
-}
-
-function normalizeCitiesInput(value) {
-  return String(value ?? "")
-    .split(",")
-    .map((city) => city.trim())
-    .filter(Boolean);
+  return String(value ?? "").replace(/\s+/g, " ").slice(0, TITLE_MAX_LEN);
 }
 
 function validateBannerForm(form) {
-  const mode = form.mode.trim();
   const title = form.title.trim();
-  const cities = normalizeCitiesInput(form.cities);
-
-  if (!mode || !title) {
-    return "Mode and title are required.";
-  }
-  if (!["global", "city"].includes(mode)) {
-    return "Please select a valid mode.";
-  }
-  if (!/^[A-Za-z0-9 ]+$/.test(title)) {
-    return "Title can contain only letters, numbers, and spaces.";
+  if (!title) {
+    return "Title is required.";
   }
   if (title.length > TITLE_MAX_LEN) {
     return `Title cannot exceed ${TITLE_MAX_LEN} characters.`;
   }
-  if (form.startDate && Number.isNaN(new Date(form.startDate).getTime())) {
-    return "Start date is invalid.";
-  }
-  if (form.endDate && Number.isNaN(new Date(form.endDate).getTime())) {
-    return "End date is invalid.";
-  }
-  if (form.startDate && form.endDate && new Date(form.startDate) > new Date(form.endDate)) {
-    return "Start date cannot be after end date.";
-  }
-  if (mode === "city" && cities.length === 0) {
-    return "At least one city is required for city mode.";
-  }
   return "";
+}
+
+function formatDate(value) {
+  if (!value) return "—";
+  const t = new Date(value).getTime();
+  if (Number.isNaN(t)) return "—";
+  return new Date(value).toLocaleString();
 }
 
 export function BannerPage() {
@@ -90,34 +53,28 @@ export function BannerPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm());
   const [editId, setEditId] = useState("");
+  const [editBaselineImage, setEditBaselineImage] = useState("");
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [togglingId, setTogglingId] = useState("");
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const [citySearch, setCitySearch] = useState("");
+  const [listSearch, setListSearch] = useState("");
+  const [listStatus, setListStatus] = useState("");
   const [viewRow, setViewRow] = useState(null);
   const fileInputRef = useRef(null);
-  const indianCities = useMemo(() => {
-    const seen = new Set();
-    return City.getCitiesOfCountry("IN")
-      .map((city) => city.name?.trim())
-      .filter(Boolean)
-      .filter((cityName) => {
-        const key = cityName.toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .sort((a, b) => a.localeCompare(b));
-  }, []);
 
   const loadRows = useCallback(async () => {
     if (!adminToken) return;
     setLoading(true);
     try {
-      const { banners, pagination } = await adminListBanners(adminToken, { page, limit: LIST_LIMIT });
+      const { banners, pagination } = await adminListBanners(adminToken, {
+        page,
+        limit: LIST_LIMIT,
+        ...(listSearch.trim() ? { search: listSearch.trim() } : {}),
+        ...(listStatus ? { status: listStatus } : {}),
+      });
       setRows(banners);
       setPages(pagination?.pages ?? 1);
       setTotal(pagination?.total ?? 0);
@@ -127,15 +84,20 @@ export function BannerPage() {
     } finally {
       setLoading(false);
     }
-  }, [adminToken, dispatch, page]);
+  }, [adminToken, dispatch, page, listSearch, listStatus]);
 
   useEffect(() => {
     loadRows();
   }, [loadRows]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [listSearch, listStatus]);
+
   const resetForm = () => {
     setForm(emptyForm());
     setEditId("");
+    setEditBaselineImage("");
     setImageFile(null);
     setImagePreview("");
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -156,11 +118,7 @@ export function BannerPage() {
     }
 
     const payload = {
-      mode: form.mode.trim(),
       title: form.title.trim(),
-      ...(form.startDate ? { startDate: form.startDate } : {}),
-      ...(form.endDate ? { endDate: form.endDate } : {}),
-      cities: form.mode === "city" ? normalizeCitiesInput(form.cities) : [],
       status: form.status || "active",
     };
 
@@ -185,16 +143,13 @@ export function BannerPage() {
 
   const onEdit = (row) => {
     setEditId(row._id);
+    setEditBaselineImage(row.image || "");
     setForm({
-      mode: row.mode || "",
       title: row.title || "",
-      startDate: row.startDate ? String(row.startDate).slice(0, 10) : "",
-      endDate: row.endDate ? String(row.endDate).slice(0, 10) : "",
-      cities: Array.isArray(row.cities) ? row.cities.join(", ") : "",
       status: row.status || "active",
     });
     setImageFile(null);
-    setImagePreview(mediaUrl(row.image));
+    setImagePreview(row.image ? mediaUrl(row.image) : "");
   };
 
   const onDelete = async (row) => {
@@ -240,23 +195,6 @@ export function BannerPage() {
   };
 
   const pageInfo = useMemo(() => `Page ${page} of ${pages} · ${total} banners`, [page, pages, total]);
-  const selectedCities = useMemo(() => normalizeCitiesInput(form.cities), [form.cities]);
-  const filteredIndianCities = useMemo(() => {
-    const query = citySearch.trim().toLowerCase();
-    if (!query) return indianCities;
-    return indianCities.filter((cityName) => cityName.toLowerCase().includes(query));
-  }, [citySearch, indianCities]);
-
-  const toggleCitySelection = (cityName) => {
-    const current = normalizeCitiesInput(form.cities);
-    const exists = current.some((city) => city.toLowerCase() === cityName.toLowerCase());
-    const next = exists ? current.filter((city) => city.toLowerCase() !== cityName.toLowerCase()) : [...current, cityName];
-    setForm((p) => ({ ...p, cities: next.join(", ") }));
-  };
-
-  const clearCitySelection = () => {
-    setForm((p) => ({ ...p, cities: "" }));
-  };
 
   return (
     <div className="user-page">
@@ -267,29 +205,13 @@ export function BannerPage() {
         <form onSubmit={onSubmit}>
           <div className="row g-3">
             <label className="user-field col-12 col-md-6">
-              <span className="user-field__label">
-                Mode <span className="required-dot">*</span>
-              </span>
-              <select
-                className="user-field__input"
-                value={form.mode}
-                onChange={(e) => {
-                  const nextMode = e.target.value;
-                  setForm((p) => ({ ...p, mode: nextMode, cities: nextMode === "city" ? p.cities : "" }));
-                }}
-                required
-              >
-                {/* <option value="">Select Mode</option> */}
-                <option value="global">Global</option>
-                <option value="city">City</option>
-              </select>
-            </label>
-            <label className="user-field col-12 col-md-6">
               <span className="user-field__label" style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                 <span>
                   Title <span className="required-dot">*</span>
                 </span>
-                <small>{form.title.length}/{TITLE_MAX_LEN}</small>
+                <small>
+                  {form.title.length}/{TITLE_MAX_LEN}
+                </small>
               </span>
               <input
                 className="user-field__input"
@@ -300,74 +222,6 @@ export function BannerPage() {
               />
             </label>
             <label className="user-field col-12 col-md-6">
-              <span className="user-field__label">Start date (optional)</span>
-              <input type="date" className="user-field__input" value={form.startDate} onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))} />
-            </label>
-            <label className="user-field col-12 col-md-6">
-              <span className="user-field__label">End date (optional)</span>
-              <input type="date" className="user-field__input" value={form.endDate} onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))} />
-            </label>
-            {form.mode === "city" ? (
-              <div className="user-field col-12">
-                <span className="user-field__label">
-                  Cities (India) <span className="required-dot">*</span>
-                </span>
-                <input
-                  className="user-field__input"
-                  value={citySearch}
-                  onChange={(e) => setCitySearch(sanitizeCitySearchInput(e.target.value))}
-                  placeholder="Search city..."
-                />
-                <small className="data-table__muted">{citySearch.length}/{CITY_SEARCH_MAX_LEN}</small>
-                <div
-                  className="user-field__input"
-                  style={{ maxHeight: 220, overflowY: "auto", padding: "8px 10px", marginTop: 8 }}
-                >
-                  {filteredIndianCities.length === 0 ? (
-                    <div className="data-table__muted">No city found.</div>
-                  ) : (
-                    filteredIndianCities.map((cityName) => {
-                      const checked = selectedCities.some((city) => city.toLowerCase() === cityName.toLowerCase());
-                      return (
-                        <label key={cityName} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: "pointer" }}>
-                          <input type="checkbox" checked={checked} onChange={() => toggleCitySelection(cityName)} />
-                          <span>{cityName}</span>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-                <input required value={form.cities} onChange={() => {}} style={{ position: "absolute", opacity: 0, pointerEvents: "none", width: 1, height: 1 }} />
-                <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  <span className="data-table__muted">{selectedCities.length} selected</span>
-                  {selectedCities.length > 0 ? (
-                    <button type="button" className="btn btn--ghost" onClick={clearCitySelection}>
-                      Clear cities
-                    </button>
-                  ) : null}
-                </div>
-                {selectedCities.length > 0 ? (
-                  <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {selectedCities.map((cityName) => (
-                      <span
-                        key={cityName}
-                        style={{
-                          fontSize: 12,
-                          padding: "4px 8px",
-                          borderRadius: 999,
-                          background: "#eef2ff",
-                          color: "#3730a3",
-                          border: "1px solid #c7d2fe",
-                        }}
-                      >
-                        {cityName}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            <label className="user-field col-12 col-md-6">
               <span className="user-field__label">Status</span>
               <select className="user-field__input" value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}>
                 <option value="active">Active</option>
@@ -375,7 +229,9 @@ export function BannerPage() {
               </select>
             </label>
             <label className="user-field col-12 col-md-6">
-              <span className="user-field__label">Image (max 5 MB) {editId ? "" : <span className="required-dot">*</span>}</span>
+              <span className="user-field__label">
+                Image (max 5 MB) {editId ? "" : <span className="required-dot">*</span>}
+              </span>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -394,7 +250,11 @@ export function BannerPage() {
                     return;
                   }
                   setImageFile(file);
-                  setImagePreview(file ? URL.createObjectURL(file) : "");
+                  if (file) {
+                    setImagePreview(URL.createObjectURL(file));
+                  } else {
+                    setImagePreview(editBaselineImage ? mediaUrl(editBaselineImage) : "");
+                  }
                 }}
               />
             </label>
@@ -421,6 +281,25 @@ export function BannerPage() {
         <div className="page-card__head">
           <h2 className="page-card__title">Banners</h2>
         </div>
+        <div className="row g-2" style={{ marginBottom: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <label className="user-field" style={{ flex: "1 1 200px", marginBottom: 0 }}>
+            <span className="user-field__label">Search title</span>
+            <input
+              className="user-field__input"
+              value={listSearch}
+              onChange={(e) => setListSearch(e.target.value)}
+              placeholder="Filter by title…"
+            />
+          </label>
+          <label className="user-field" style={{ flex: "0 1 160px", marginBottom: 0 }}>
+            <span className="user-field__label">Status</span>
+            <select className="user-field__input" value={listStatus} onChange={(e) => setListStatus(e.target.value)}>
+              <option value="">All</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </label>
+        </div>
         <div className="table-scroll">
           <table className="data-table">
             <thead>
@@ -428,9 +307,7 @@ export function BannerPage() {
                 <th>S No.</th>
                 <th>Image</th>
                 <th>Title</th>
-                <th>Mode</th>
-                <th>Date Range</th>
-                {/* <th>Cities</th> */}
+                <th>Created</th>
                 <th>Status</th>
                 <th className="data-table__actions-col">Actions</th>
               </tr>
@@ -438,11 +315,11 @@ export function BannerPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7}>Loading…</td>
+                  <td colSpan={6}>Loading…</td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7}>No banners found.</td>
+                  <td colSpan={6}>No banners found.</td>
                 </tr>
               ) : (
                 rows.map((row, idx) => (
@@ -450,11 +327,7 @@ export function BannerPage() {
                     <td className="data-table__muted">{(page - 1) * LIST_LIMIT + idx + 1}</td>
                     <td>{row.image ? <img src={mediaUrl(row.image)} alt="" style={{ width: 56, height: 42, objectFit: "cover", borderRadius: 6 }} /> : "—"}</td>
                     <td>{row.title || "—"}</td>
-                    <td>{row.mode || "—"}</td>
-                    <td className="data-table__muted">
-                      {row.startDate ? new Date(row.startDate).toLocaleDateString() : "—"} - {row.endDate ? new Date(row.endDate).toLocaleDateString() : "—"}
-                    </td>
-                    {/* <td className="data-table__muted">{Array.isArray(row.cities) && row.cities.length > 0 ? row.cities.join(", ") : "—"}</td> */}
+                    <td className="data-table__muted">{formatDate(row.createdAt)}</td>
                     <td>
                       <button
                         type="button"
@@ -546,12 +419,18 @@ export function BannerPage() {
               </div>
             ) : null}
             <div className="row g-2">
-              <div className="col-12"><strong>Title:</strong> {viewRow.title || "—"}</div>
-              <div className="col-6"><strong>Mode:</strong> {viewRow.mode || "—"}</div>
-              <div className="col-6"><strong>Status:</strong> {viewRow.status || "—"}</div>
-              <div className="col-6"><strong>Start Date:</strong> {viewRow.startDate ? new Date(viewRow.startDate).toLocaleDateString() : "—"}</div>
-              <div className="col-6"><strong>End Date:</strong> {viewRow.endDate ? new Date(viewRow.endDate).toLocaleDateString() : "—"}</div>
-              <div className="col-12"><strong>Cities:</strong> {Array.isArray(viewRow.cities) && viewRow.cities.length > 0 ? viewRow.cities.join(", ") : "—"}</div>
+              <div className="col-12">
+                <strong>Title:</strong> {viewRow.title || "—"}
+              </div>
+              <div className="col-6">
+                <strong>Status:</strong> {viewRow.status || "—"}
+              </div>
+              <div className="col-6">
+                <strong>Created:</strong> {formatDate(viewRow.createdAt)}
+              </div>
+              <div className="col-6">
+                <strong>Updated:</strong> {formatDate(viewRow.updatedAt)}
+              </div>
             </div>
           </div>
         </div>

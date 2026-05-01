@@ -47,8 +47,8 @@ export function DashboardPage() {
             <svg viewBox="0 0 320 120" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="sparkFill" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#ffd54a" stopOpacity="0.35" />
-                  <stop offset="100%" stopColor="#ffd54a" stopOpacity="0" />
+                  <stop offset="0%" stopColor="#f4965d" stopOpacity="0.35" />
+                  <stop offset="100%" stopColor="#f4965d" stopOpacity="0" />
                 </linearGradient>
               </defs>
               <path
@@ -58,7 +58,7 @@ export function DashboardPage() {
               <path
                 d="M0 90 L60 70 L120 80 L180 40 L240 55 L320 20"
                 fill="none"
-                stroke="#ff8a00"
+                stroke="#e07d45"
                 strokeWidth="3"
                 strokeLinejoin="round"
                 strokeLinecap="round"

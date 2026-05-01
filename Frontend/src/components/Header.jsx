@@ -86,7 +86,7 @@ export function Header({
       <div className="admin-header__brand">
         {brandLogoSrc ? <img src={brandLogoSrc} alt="" className="admin-header__brand-logo" /> : null}
         <div className="admin-header__title-group">
-          <p className="admin-header__app-line">{appDisplayName || "OhoE"}</p>
+          <p className="admin-header__app-line">{appDisplayName || "Wellness"}</p>
         </div>
       </div>
       <div className="admin-header__spacer" />

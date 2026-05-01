@@ -2,6 +2,7 @@ const express = require("express");
 
 const healthRoutes = require("./health.routes");
 const userAuthRoutes = require("./userRoutes/authRoutes");
+const userMiscRoutes = require("./userRoutes/miscRoutes");
 const adminAuthRoutes = require("./adminRoutes/authRoutes");
 const adminUsersRoutes = require("./adminRoutes/usersRoutes");
 const adminMiscRoutes = require("./adminRoutes/miscRoutes");
@@ -15,6 +16,7 @@ const router = express.Router();
 router.use("/health", healthRoutes);
 router.use("/public", publicRoutes);
 router.use("/user/auth", userAuthRoutes);
+router.use("/user/misc", userMiscRoutes);
 router.use("/admin/auth", adminAuthRoutes);
 router.use("/admin/users", adminUsersRoutes);
 router.use("/admin/misc", adminMiscRoutes);

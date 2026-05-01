@@ -4,7 +4,6 @@ import Swal from "sweetalert2";
 import { MdEditSquare, MdGroups } from "react-icons/md";
 import { AiFillDelete, AiOutlineEye } from "react-icons/ai";
 import { IoSendOutline, IoStorefrontOutline } from "react-icons/io5";
-import { TbTruckDelivery } from "react-icons/tb";
 import {
   adminCreateNotification,
   adminDeleteNotification,
@@ -14,11 +13,16 @@ import {
 import { logout } from "../../store/authSlice.js";
 import { mediaUrl } from "../../media.js";
 
-const AUDIENCE_OPTIONS = [
+const SEND_AUDIENCE_OPTIONS = [
   { value: "users", label: "Users", icon: <MdGroups size={16} /> },
-  { value: "vendors", label: "Vendors", icon: <IoStorefrontOutline size={16} /> },
-  { value: "deliveryPartners", label: "Delivery Partners", icon: <TbTruckDelivery size={16} /> },
+  { value: "coaches", label: "Coaches", icon: <IoStorefrontOutline size={16} /> },
 ];
+
+const LIST_AUDIENCE_OPTIONS = [
+  { value: "", label: "All audiences", icon: <MdGroups size={16} /> },
+  ...SEND_AUDIENCE_OPTIONS,
+];
+
 const LIST_LIMIT = 10;
 const IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 const MESSAGE_MAX_LEN = 1000;
@@ -36,7 +40,14 @@ function sanitizeMessageInput(value) {
 }
 
 function audienceLabel(type) {
-  return AUDIENCE_OPTIONS.find((x) => x.value === type)?.label || "Audience";
+  return SEND_AUDIENCE_OPTIONS.find((x) => x.value === type)?.label || type || "—";
+}
+
+function formatDateTime(value) {
+  if (!value) return "—";
+  const t = new Date(value).getTime();
+  if (Number.isNaN(t)) return "—";
+  return new Date(value).toLocaleString();
 }
 
 export function NotificationPage() {
@@ -44,9 +55,12 @@ export function NotificationPage() {
   const adminToken = useSelector((s) => s.auth.adminToken);
 
   const [sendAudience, setSendAudience] = useState("users");
-  const [listAudience, setListAudience] = useState("users");
+  const [listAudience, setListAudience] = useState("");
+  const [listSearch, setListSearch] = useState("");
+  const [listStatus, setListStatus] = useState("");
   const [form, setForm] = useState(emptyForm("users"));
   const [editId, setEditId] = useState("");
+  const [editBaselineImage, setEditBaselineImage] = useState("");
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [rows, setRows] = useState([]);
@@ -66,7 +80,9 @@ export function NotificationPage() {
       const { notifications, pagination } = await adminListNotifications(adminToken, {
         page,
         limit: LIST_LIMIT,
-        audienceType: listAudience,
+        ...(listAudience ? { audienceType: listAudience } : {}),
+        ...(listStatus ? { status: listStatus } : {}),
+        ...(listSearch.trim() ? { search: listSearch.trim() } : {}),
       });
       setRows(notifications);
       setPages(pagination?.pages ?? 1);
@@ -81,7 +97,7 @@ export function NotificationPage() {
     } finally {
       setLoading(false);
     }
-  }, [adminToken, dispatch, listAudience, page]);
+  }, [adminToken, dispatch, listAudience, listSearch, listStatus, page]);
 
   useEffect(() => {
     loadRows();
@@ -89,10 +105,11 @@ export function NotificationPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [listAudience]);
+  }, [listAudience, listSearch, listStatus]);
 
   const resetForm = useCallback(() => {
     setEditId("");
+    setEditBaselineImage("");
     setForm(emptyForm(sendAudience));
     setImageFile(null);
     setImagePreview("");
@@ -132,7 +149,7 @@ export function NotificationPage() {
         await adminCreateNotification(adminToken, payload, imageFile);
         await Swal.fire({
           icon: "success",
-          title: "Notification sent",
+          title: "Notification created",
           timer: 1500,
         });
       }
@@ -153,6 +170,7 @@ export function NotificationPage() {
   const onEdit = (row) => {
     const nextAudience = row.audienceType || "users";
     setEditId(row._id);
+    setEditBaselineImage(row.image || "");
     setSendAudience(nextAudience);
     setForm({
       audienceType: nextAudience,
@@ -227,11 +245,11 @@ export function NotificationPage() {
               borderRadius: 999,
               padding: 4,
               display: "grid",
-              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gridTemplateColumns: `repeat(${SEND_AUDIENCE_OPTIONS.length}, minmax(0, 1fr))`,
               gap: 4,
             }}
           >
-            {AUDIENCE_OPTIONS.map((item) => (
+            {SEND_AUDIENCE_OPTIONS.map((item) => (
               <button
                 key={item.value}
                 type="button"
@@ -277,9 +295,16 @@ export function NotificationPage() {
                 </small>
               </label>
 
-   
-          <label className="user-field col-12 col-md-6">
-                <span className="user-field__label">Add Image</span>
+              <label className="user-field col-12 col-md-6">
+                <span className="user-field__label">Status</span>
+                <select className="user-field__input" value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </label>
+
+              <label className="user-field col-12 col-md-6">
+                <span className="user-field__label">Add Image (optional)</span>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -288,7 +313,7 @@ export function NotificationPage() {
                     const file = e.target.files?.[0] || null;
                     if (file && file.size > IMAGE_MAX_SIZE_BYTES) {
                       setImageFile(null);
-                      setImagePreview("");
+                      setImagePreview(editBaselineImage ? mediaUrl(editBaselineImage) : "");
                       e.target.value = "";
                       void Swal.fire({
                         icon: "error",
@@ -298,11 +323,14 @@ export function NotificationPage() {
                       return;
                     }
                     setImageFile(file);
-                    setImagePreview(file ? URL.createObjectURL(file) : "");
+                    if (file) {
+                      setImagePreview(URL.createObjectURL(file));
+                    } else {
+                      setImagePreview(editBaselineImage ? mediaUrl(editBaselineImage) : "");
+                    }
                   }}
                 />
               </label>
-          
             </div>
 
             {imagePreview ? (
@@ -324,10 +352,10 @@ export function NotificationPage() {
               <button type="submit" className="btn btn--primary" disabled={saving}>
                 <IoSendOutline size={16} />
                 {saving
-                  ? "Sending..."
+                  ? "Saving…"
                   : editId
                   ? `Update for ${audienceLabel(sendAudience)}`
-                  : `Send to All ${audienceLabel(sendAudience)}`}
+                  : `Save for ${audienceLabel(sendAudience)}`}
               </button>
             </div>
           </form>
@@ -345,14 +373,14 @@ export function NotificationPage() {
             borderRadius: 999,
             padding: 4,
             display: "grid",
-            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            gridTemplateColumns: `repeat(${LIST_AUDIENCE_OPTIONS.length}, minmax(0, 1fr))`,
             gap: 4,
             marginBottom: 10,
           }}
         >
-          {AUDIENCE_OPTIONS.map((item) => (
+          {LIST_AUDIENCE_OPTIONS.map((item) => (
             <button
-              key={item.value}
+              key={item.value || "all"}
               type="button"
               onClick={() => setListAudience(item.value)}
               style={{
@@ -373,13 +401,35 @@ export function NotificationPage() {
           ))}
         </div>
 
+        <div className="row g-2" style={{ marginBottom: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <label className="user-field" style={{ flex: "1 1 200px", marginBottom: 0 }}>
+            <span className="user-field__label">Search</span>
+            <input
+              className="user-field__input"
+              value={listSearch}
+              onChange={(e) => setListSearch(e.target.value)}
+              placeholder="Message or audience…"
+            />
+          </label>
+          <label className="user-field" style={{ flex: "0 1 160px", marginBottom: 0 }}>
+            <span className="user-field__label">Status</span>
+            <select className="user-field__input" value={listStatus} onChange={(e) => setListStatus(e.target.value)}>
+              <option value="">All</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </label>
+        </div>
+
         <div className="table-scroll">
           <table className="data-table">
             <thead>
               <tr>
                 <th>S No.</th>
                 <th>Image</th>
+                <th>Audience</th>
                 <th>Message</th>
+                <th>Sent</th>
                 <th>Status</th>
                 <th className="data-table__actions-col">Actions</th>
               </tr>
@@ -387,11 +437,11 @@ export function NotificationPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5}>Loading...</td>
+                  <td colSpan={7}>Loading...</td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5}>No notifications found.</td>
+                  <td colSpan={7}>No notifications found.</td>
                 </tr>
               ) : (
                 rows.map((row, idx) => (
@@ -408,7 +458,9 @@ export function NotificationPage() {
                         "—"
                       )}
                     </td>
+                    <td className="data-table__muted">{audienceLabel(row.audienceType)}</td>
                     <td>{row.message || "—"}</td>
+                    <td className="data-table__muted">{formatDateTime(row.sentAt)}</td>
                     <td>
                       <button
                         type="button"
@@ -524,7 +576,13 @@ export function NotificationPage() {
                 <strong>Status:</strong> {viewRow.status || "—"}
               </div>
               <div className="col-6">
-                <strong>Sent:</strong> {viewRow.sentAt ? new Date(viewRow.sentAt).toLocaleString() : "—"}
+                <strong>Sent:</strong> {formatDateTime(viewRow.sentAt)}
+              </div>
+              <div className="col-6">
+                <strong>Created:</strong> {formatDateTime(viewRow.createdAt)}
+              </div>
+              <div className="col-6">
+                <strong>Updated:</strong> {formatDateTime(viewRow.updatedAt)}
               </div>
             </div>
           </div>

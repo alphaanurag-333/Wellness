@@ -1,6 +1,6 @@
 import { createSlice } from "@reduxjs/toolkit";
 
-const STORAGE_KEY = "oho_admin_auth";
+const STORAGE_KEY = "wellness_admin_auth";
 
 function readStoredAuth() {
   if (typeof window === "undefined") {

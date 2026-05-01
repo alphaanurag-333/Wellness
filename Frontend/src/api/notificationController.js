@@ -4,6 +4,17 @@ function notificationsBase() {
   return "/admin/notifications";
 }
 
+export async function adminGetNotificationById(token, id) {
+  try {
+    const { data } = await api.get(`${notificationsBase()}/${encodeURIComponent(id)}`, {
+      headers: authHeader(token),
+    });
+    return data.notification;
+  } catch (error) {
+    normalizeApiError(error);
+  }
+}
+
 export async function adminListNotifications(
   token,
   { page = 1, limit = 10, status, audienceType, search } = {}

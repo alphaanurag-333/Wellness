@@ -4,12 +4,6 @@ const STATUS = ["active", "inactive"];
 
 const bannerSchema = new mongoose.Schema(
   {
-    mode: {
-      type: String,
-      required: true,
-      enum: ["global", "city"],
-      trim: true,
-    },
     title: {
       type: String,
       required: true,
@@ -20,18 +14,6 @@ const bannerSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    startDate: {
-      type: Date,
-    },
-    endDate: {
-      type: Date,
-    },
-    cities: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
     status: {
       type: String,
       enum: STATUS,
