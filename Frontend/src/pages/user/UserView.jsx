@@ -95,6 +95,19 @@ export function UserView() {
     if (!Number.isNaN(d.getTime())) dobLabel = d.toLocaleDateString(undefined, { dateStyle: "medium" });
   }
 
+  const phc = user.primaryHealthConcern;
+  const phcLabel =
+    phc && typeof phc === "object" && phc.title != null
+      ? `${phc.title} (${phc._id || ""})`
+      : phc != null
+        ? String(phc)
+        : "—";
+
+  const phoneDisplay = [user.phoneCountryCode, user.phone].filter(Boolean).join(" ") || "—";
+  const waDisplay = user.whatsappSameAsMobile
+    ? `Same as mobile (${phoneDisplay})`
+    : [user.whatsappCountryCode, user.whatsappPhone].filter(Boolean).join(" ") || "—";
+
   return (
     <div className="user-page">
       <div className="user-page__toolbar">
@@ -123,11 +136,22 @@ export function UserView() {
           <div className="user-view-grid">
             <DetailRow label="Full name" value={user.name} />
             <DetailRow label="Email ID" value={user.email} />
-            <DetailRow label="Mobile Number" value={user.phone} />
+            <DetailRow label="Phone" value={phoneDisplay} />
+            <DetailRow label="WhatsApp" value={waDisplay} />
             <DetailRow label="Date of birth" value={dobLabel} />
             <DetailRow label="Gender" value={user.gender} />
+            <DetailRow label="Country" value={user.country} />
+            <DetailRow label="State" value={user.state} />
+            <DetailRow label="City" value={user.city} />
+            <DetailRow label="Primary health concern" value={phc?.title || "—"} />
+            <DetailRow label="Terms accepted" value={user.termsAccepted ? "Yes" : "No"} />
+            <DetailRow
+              label="Terms accepted at"
+              value={user.termsAcceptedAt ? formatDate(user.termsAcceptedAt) : "—"}
+            />
             <DetailRow label="Status" value={user.status} />
             <DetailRow label="Created At" value={formatDate(user.createdAt)} />
+            <DetailRow label="Updated At" value={formatDate(user.updatedAt)} />
           </div>
         </div>
       </div>

@@ -19,15 +19,11 @@ function titleFromPath(pathname) {
     return "User Management";
   }
 
-  if (p.startsWith("/admin/vendors")) {
-    if (/^\/admin\/vendors\/new$/.test(p)) return "Add Vendor";
-    if (/^\/admin\/vendors\/[^/]+\/edit$/.test(p)) return "Edit Vendor";
-    if (/^\/admin\/vendors\/[^/]+$/.test(p)) return "Vendor Details";
-    return "Vendor Management";
-  }
 
   if (/^\/admin\/profile\/?$/.test(p)) return "Admin Profile";
   if (/^\/admin\/settings\/?$/.test(p)) return "App Settings";
+
+  if (/^\/admin\/health-concerns\/?$/.test(p)) return "Health concerns";
 
   if (p.startsWith("/admin/static-pages")) {
     if (/^\/admin\/static-pages\/[^/]+\/edit\/?$/.test(p)) return "Edit static page";

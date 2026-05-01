@@ -5,7 +5,9 @@ const { optionalUserFile } = require("../../middleware/authMultipart");
 
 const router = express.Router();
 
+router.post("/send-register-otp", authController.sendRegisterOtp);
 router.post("/register", optionalUserFile, authController.register);
+router.post("/send-login-otp", authController.sendLoginOtp);
 router.post("/login", authController.login);
 router.post("/forgot-password", authController.forgotPassword);
 router.post("/reset-password", authController.resetPassword);

@@ -1846,6 +1846,38 @@ a.btn:hover {
   max-width: min(100%, 420px);
 }
 
+.user-field--phone-combo {
+  max-width: min(100%, 480px);
+}
+
+.user-field__phone-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  width: 100%;
+}
+
+.user-field__phone-cc {
+  flex: 0 1 220px;
+  min-width: 0;
+  max-width: 240px;
+}
+
+.user-field__phone-national {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.user-field--checkbox-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-field__label--row {
+  margin: 0;
+}
+
 .user-field__label {
   font-size: 0.8125rem;
   font-weight: 700;

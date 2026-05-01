@@ -1,5 +1,6 @@
 const Banner = require("../../models/other/banner");
 const Faq = require("../../models/other/faq");
+const HealthConcern = require("../../models/other/healthConcern");
 const { Page } = require("../../models");
 const AppError = require("../../utils/AppError");
 const { asyncHandler } = require("../../utils/asyncHandler");
@@ -40,5 +41,13 @@ exports.getActiveFaqs = asyncHandler(async (req, res) => {
   res.json({
     message: "Active FAQs",
     faqs,
+  });
+});
+
+exports.getActiveHealthConcerns = asyncHandler(async (req, res) => {
+  const healthConcerns = await HealthConcern.find({ status: "active" }).sort({ title: 1 }).lean();
+  res.json({
+    message: "Active health concerns",
+    healthConcerns,
   });
 });

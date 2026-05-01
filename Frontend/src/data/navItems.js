@@ -32,6 +32,7 @@ export const navItems = [
   { to: "coaches", label: "Coaches", icon: "list" },
   { to: "awcs", label: "AWCs", icon: "list" },
   { to: "banners", label: "Banner Management", icon: "image" },
+  { to: "health-concerns", label: "Health concerns", icon: "list" },
   { to: "faq", label: "FAQ", icon: "help" },
   { to: "notifications", label: "Notifications", icon: "bell" },
   { to: "static-pages", label: "Static Pages", icon: "file" },

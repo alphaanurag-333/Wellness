@@ -11,6 +11,7 @@ const { getPagination, searchFilter } = require("../../utils/listQuery");
 const UPLOAD_FOLDER = "user";
 
 const GENDERS = ["male", "female", "other", "boy", "girl", "guess"];
+const ALLOWED_STATUS = new Set(["active", "inactive", "blocked"]);
 
 function normalizeRequired(value) {
   return String(value ?? "").trim();
@@ -35,13 +36,52 @@ function assertGender(value) {
   }
 }
 
+function assertStatus(value, label = "status") {
+  if (value === undefined || value === null || value === "") {
+    return;
+  }
+  if (!ALLOWED_STATUS.has(String(value))) {
+    throw new AppError(`Invalid ${label}`, 400);
+  }
+}
+
+function parsePrimaryHealthConcern(value) {
+  if (value === undefined) {
+    return undefined;
+  }
+  const s = String(value ?? "").trim();
+  if (!s) {
+    return null;
+  }
+  assertObjectId(s, "Invalid primary health concern id");
+  return s;
+}
+
+/** Multipart sends booleans as strings; avoid Boolean("false") === true. */
+function parseBodyBoolean(value, whenMissing = false) {
+  if (value === undefined || value === null || value === "") {
+    return whenMissing;
+  }
+  if (value === true || value === false) {
+    return value;
+  }
+  const s = String(value).trim().toLowerCase();
+  if (s === "true" || s === "1" || s === "yes" || s === "on") return true;
+  if (s === "false" || s === "0" || s === "no" || s === "off") return false;
+  return whenMissing;
+}
+
 exports.listUsers = asyncHandler(async (req, res) => {
   const { page, limit, skip } = getPagination(req.query);
   const { status, search } = req.query;
 
   const filter = {};
-  if (status) {
-    filter.status = status;
+  if (status && String(status).trim()) {
+    const st = String(status).trim();
+    if (!ALLOWED_STATUS.has(st)) {
+      throw new AppError("Invalid status filter", 400);
+    }
+    filter.status = st;
   }
   const searchOr = searchFilter(search, [
     "name",
@@ -52,7 +92,6 @@ exports.listUsers = asyncHandler(async (req, res) => {
     "country",
     "state",
     "city",
-    "primaryHealthConcern",
   ]);
   if (searchOr) {
     Object.assign(filter, searchOr);
@@ -60,6 +99,7 @@ exports.listUsers = asyncHandler(async (req, res) => {
 
   const [users, total] = await Promise.all([
     User.find(filter)
+      .populate("primaryHealthConcern")
       .select("-passwordHash")
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -81,7 +121,7 @@ exports.listUsers = asyncHandler(async (req, res) => {
 
 exports.getUserById = asyncHandler(async (req, res) => {
   assertObjectId(req.params.id);
-  const user = await User.findById(req.params.id).select("-passwordHash");
+  const user = await User.findById(req.params.id).populate("primaryHealthConcern").select("-passwordHash");
   if (!user) {
     throw new AppError("User not found", 404);
   }
@@ -106,7 +146,6 @@ exports.createUser = asyncHandler(async (req, res) => {
     primaryHealthConcern,
     termsAccepted,
     termsAcceptedAt,
-    phoneVerified,
     fcm_id,
     profileImage,
     status,
@@ -117,19 +156,23 @@ exports.createUser = asyncHandler(async (req, res) => {
   const emailNorm = normalizeEmail(email);
   const phoneCcNorm = normalizeOptional(phoneCountryCode) || "+91";
 
-  if (!nameNorm || !phoneNorm) {
+  if (!nameNorm || !phoneNorm || !emailNorm) {
     deleteUploadFileByPublicUrl(publicUploadPathFromFile(req, UPLOAD_FOLDER));
-    throw new AppError("Name and phone are required", 400);
+    throw new AppError("Name, email, and phone are required", 400);
   }
 
   assertGender(gender);
 
-  if (emailNorm) {
-    const existing = await User.findOne({ email: emailNorm });
-    if (existing) {
-      deleteUploadFileByPublicUrl(publicUploadPathFromFile(req, UPLOAD_FOLDER));
-      throw new AppError("Email is already in use", 409);
-    }
+  let statusNorm = "active";
+  if (status !== undefined && status !== null && String(status).trim()) {
+    statusNorm = String(status).trim();
+    assertStatus(statusNorm, "status");
+  }
+
+  const existingEmail = await User.findOne({ email: emailNorm });
+  if (existingEmail) {
+    deleteUploadFileByPublicUrl(publicUploadPathFromFile(req, UPLOAD_FOLDER));
+    throw new AppError("Email is already in use", 409);
   }
 
   const existingPhone = await User.findOne({
@@ -141,7 +184,7 @@ exports.createUser = asyncHandler(async (req, res) => {
     throw new AppError("Phone number is already in use", 409);
   }
 
-  const sameWa = Boolean(whatsappSameAsMobile);
+  const sameWa = parseBodyBoolean(whatsappSameAsMobile, false);
   let waCc = normalizeOptional(whatsappCountryCode);
   let waPhone = normalizeOptional(whatsappPhone);
   if (sameWa) {
@@ -149,22 +192,26 @@ exports.createUser = asyncHandler(async (req, res) => {
     waPhone = phoneNorm;
   }
 
-  const termsOn = Boolean(termsAccepted);
-  const termsAt =
-    termsOn && termsAcceptedAt
-      ? new Date(termsAcceptedAt)
-      : termsOn
-        ? new Date()
-        : null;
+  const termsOn = parseBodyBoolean(termsAccepted, false);
+  if (!termsOn) {
+    deleteUploadFileByPublicUrl(publicUploadPathFromFile(req, UPLOAD_FOLDER));
+    throw new AppError("Terms and conditions must be accepted to create a user.", 400);
+  }
+  const termsAt = termsAcceptedAt ? new Date(termsAcceptedAt) : new Date();
+  if (Number.isNaN(termsAt.getTime())) {
+    deleteUploadFileByPublicUrl(publicUploadPathFromFile(req, UPLOAD_FOLDER));
+    throw new AppError("Invalid terms acceptance date.", 400);
+  }
 
   const fromFile = publicUploadPathFromFile(req, UPLOAD_FOLDER);
   const passwordNorm = String(password ?? "").trim();
   const passwordHash = passwordNorm ? await hashPassword(passwordNorm) : undefined;
+  const phc = parsePrimaryHealthConcern(primaryHealthConcern);
   let user;
   try {
     user = await User.create({
       name: nameNorm,
-      ...(emailNorm ? { email: emailNorm } : {}),
+      email: emailNorm,
       ...(passwordHash ? { passwordHash } : {}),
       phoneCountryCode: phoneCcNorm,
       phone: phoneNorm,
@@ -176,12 +223,11 @@ exports.createUser = asyncHandler(async (req, res) => {
       country: normalizeOptional(country),
       state: normalizeOptional(state),
       city: normalizeOptional(city),
-      primaryHealthConcern: normalizeOptional(primaryHealthConcern),
-      termsAccepted: termsOn,
+      ...(phc !== undefined ? { primaryHealthConcern: phc } : {}),
+      termsAccepted: true,
       termsAcceptedAt: termsAt,
-      ...(phoneVerified !== undefined ? { phoneVerified: Boolean(phoneVerified) } : {}),
       fcm_id: normalizeOptional(fcm_id),
-      status: status || "active",
+      status: statusNorm,
       profileImage: fromFile ?? normalizeOptional(profileImage),
     });
   } catch (err) {
@@ -219,9 +265,6 @@ exports.updateUser = asyncHandler(async (req, res) => {
     state,
     city,
     primaryHealthConcern,
-    termsAccepted,
-    termsAcceptedAt,
-    phoneVerified,
     fcm_id,
     profileImage,
     status,
@@ -230,18 +273,18 @@ exports.updateUser = asyncHandler(async (req, res) => {
   if (email !== undefined) {
     const emailNorm = normalizeEmail(email);
     if (!emailNorm) {
-      user.set("email", undefined);
-    } else {
-      const taken = await User.findOne({
-        email: emailNorm,
-        _id: { $ne: user._id },
-      });
-      if (taken) {
-        deleteUploadFileByPublicUrl(publicUploadPathFromFile(req, UPLOAD_FOLDER));
-        throw new AppError("Email is already in use", 409);
-      }
-      user.email = emailNorm;
+      deleteUploadFileByPublicUrl(publicUploadPathFromFile(req, UPLOAD_FOLDER));
+      throw new AppError("Email is required", 400);
     }
+    const taken = await User.findOne({
+      email: emailNorm,
+      _id: { $ne: user._id },
+    });
+    if (taken) {
+      deleteUploadFileByPublicUrl(publicUploadPathFromFile(req, UPLOAD_FOLDER));
+      throw new AppError("Email is already in use", 409);
+    }
+    user.email = emailNorm;
   }
 
   const nextCc =
@@ -270,7 +313,7 @@ exports.updateUser = asyncHandler(async (req, res) => {
   }
 
   if (whatsappSameAsMobile !== undefined) {
-    user.whatsappSameAsMobile = Boolean(whatsappSameAsMobile);
+    user.whatsappSameAsMobile = parseBodyBoolean(whatsappSameAsMobile, false);
   }
   if (user.whatsappSameAsMobile) {
     user.whatsappCountryCode = user.phoneCountryCode || "+91";
@@ -324,36 +367,15 @@ exports.updateUser = asyncHandler(async (req, res) => {
     user.city = normalizeOptional(city);
   }
   if (primaryHealthConcern !== undefined) {
-    user.primaryHealthConcern = normalizeOptional(primaryHealthConcern);
+    user.primaryHealthConcern = parsePrimaryHealthConcern(primaryHealthConcern);
   }
 
-  if (termsAccepted !== undefined) {
-    const nextTerms = Boolean(termsAccepted);
-    const wasAccepted = user.termsAccepted;
-    user.termsAccepted = nextTerms;
-    if (!nextTerms) {
-      user.termsAcceptedAt = null;
-    } else if (!wasAccepted) {
-      user.termsAcceptedAt = termsAcceptedAt
-        ? new Date(termsAcceptedAt)
-        : new Date();
-    } else if (termsAcceptedAt !== undefined) {
-      user.termsAcceptedAt = termsAcceptedAt
-        ? new Date(termsAcceptedAt)
-        : user.termsAcceptedAt;
-    }
-  } else if (termsAcceptedAt !== undefined) {
-    user.termsAcceptedAt = termsAcceptedAt ? new Date(termsAcceptedAt) : null;
-  }
-
-  if (phoneVerified !== undefined) {
-    user.phoneVerified = Boolean(phoneVerified);
-  }
   if (fcm_id !== undefined) {
     user.fcm_id = normalizeOptional(fcm_id);
   }
   if (status !== undefined) {
-    user.status = status;
+    assertStatus(status, "status");
+    user.status = String(status).trim();
   }
   if (password) {
     user.passwordHash = await hashPassword(password);

@@ -9,6 +9,7 @@ const adminMiscRoutes = require("./adminRoutes/miscRoutes");
 const adminBannersRoutes = require("./adminRoutes/bannersRoutes");
 const adminNotificationsRoutes = require("./adminRoutes/notificationsRoutes");
 const adminFaqRoutes = require("./adminRoutes/faqRoutes");
+const adminHealthConcernsRoutes = require("./adminRoutes/healthConcernsRoutes");
 const publicRoutes = require("./publicRoutes");
 
 const router = express.Router();
@@ -23,5 +24,6 @@ router.use("/admin/misc", adminMiscRoutes);
 router.use("/admin/banners", adminBannersRoutes);
 router.use("/admin/notifications", adminNotificationsRoutes);
 router.use("/admin/faq", adminFaqRoutes);
+router.use("/admin/health-concerns", adminHealthConcernsRoutes);
 
 module.exports = router;

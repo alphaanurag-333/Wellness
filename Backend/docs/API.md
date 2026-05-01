@@ -1,670 +1,346 @@
-# HTTP API reference
-
-Base URL for local development:
-
-```text
-http://localhost:5000/api
+# Wellness API — User authentication
+ 
+Base URL (local default): `http://localhost:5000/api`
+ 
+All user-auth routes are under **`/api/user/auth`**.
+ 
+Protected routes expect a JWT in the header:
+ 
+```http
+Authorization: Bearer <access_token>
 ```
-
-Static files (profile uploads): `http://localhost:5000/uploads/...` (no `/api` prefix).
-
+ 
+Errors use JSON bodies with a `message` field (and optional `statusCode` from the global error handler).
+ 
 ---
-
-## Postman
-
-1. **Import:** Postman → **Import** → **Raw text** → paste any **curl** block below → **Continue** → **Import**.
-2. Replace placeholders:
-   - `http://localhost:5000` if your server uses another host/port.
-   - `YOUR_USER_TOKEN`, `YOUR_ADMIN_TOKEN`, etc. with a real JWT from login/register.
-   - MongoDB `ObjectId` paths (e.g. `507f1f77bcf86cd799439011`) with real IDs from your DB.
-3. **Collection variables (optional):** In Postman you can define `baseUrl` = `http://localhost:5000/api` and replace the URL in requests manually; the snippets below use the **full URL** so they import without variables.
-
-**Postman-style curl** uses:
-
-- `--location` — follow redirects (Postman default).
-- `--request <METHOD>` — HTTP method.
-- `--header 'Name: value'` — headers (single-quoted for portability).
-- `--data-raw '...'` — raw JSON body (Postman’s “raw” body).
-- `--form 'key=value'` — multipart fields (Postman’s form-data).
-
+ 
+## Registration flow (OTP required)
+ 
+Registration is two steps: request a code, then complete signup with the same `email` + `phone` (+ optional `phoneCountryCode`) and the **`otp`** from step 1. Codes expire after **10 minutes** (`OTP_TTL_MS` in code) and are **single-use** (the record is deleted after a successful register).
+ 
+### 1. Send registration OTP
+ 
+`POST /user/auth/send-register-otp`
+ 
+**Body (JSON)**
+ 
+| Field | Type | Required | Notes |
+|--------|------|----------|--------|
+| `email` | string | yes | Normalized to lowercase |
+| `phone` | string | yes | National number (e.g. 10 digits) |
+| `phoneCountryCode` | string | no | Default `"+91"` |
+ 
+**Success `200`**
+ 
+```json
+{
+  "message": "Registration code sent.",
+  "otp": "123456"
+}
+```
+ 
+> **Note:** `otp` is returned in the API response for development/testing. Replace with SMS/email delivery in production.
+ 
+**Errors**
+ 
+| Status | When |
+|--------|------|
+| `400` | `Email and phone are required to send a registration code.` |
+| `409` | Email or phone already registered |
+ 
+```bash
+curl -s -X POST "http://localhost:5000/api/user/auth/send-register-otp" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"user@example.com\",\"phone\":\"9876543210\",\"phoneCountryCode\":\"+91\"}"
+```
+ 
 ---
-
-## Table of contents
-
-1. [Quick endpoint index](#quick-endpoint-index)
-2. [Health](#health)
-3. [Profile images & multipart](#profile-images--multipart)
-4. [User auth](#user-auth--apiuserauth)
-5. [Vendor auth](#vendor-auth--apivendorauth)
-6. [Admin auth](#admin-auth--apiadminauth)
-7. [Delivery auth](#delivery-auth--apideliveryauth)
-8. [Admin: users CRUD](#admin-users-crud--apiadminusers)
-9. [Admin: vendors CRUD](#admin-vendors-crud--apiadminvendors)
-10. [Admin: delivery partners CRUD](#admin-delivery-partners-crud--apiadmindelivery-boys)
-11. [HTTP status codes](#http-status-codes)
-12. [JWT & roles](#jwt--roles)
-13. [Shell & Windows notes](#shell--windows-notes)
-
+ 
+### 2. Register
+ 
+`POST /user/auth/register`
+ 
+Accepts **`application/json`** or **`multipart/form-data`** (optional profile image).
+ 
+**Multipart:** use field name **`file`** for the image; other fields as form fields.
+ 
+**Body (main fields)**
+ 
+| Field | Type | Required | Notes |
+|--------|------|----------|--------|
+| `name` | string | yes | |
+| `email` | string | yes | Must match OTP request |
+| `phone` | string | yes | Must match OTP request |
+| `phoneCountryCode` | string | no | Default `+91`; must match OTP request |
+| `otp` | string | yes | 6-digit code from `send-register-otp` |
+| `password` | string | no | If omitted, user can sign in with OTP only until they set a password |
+| `termsAccepted` | boolean/string | yes | Must be truthy (`true`, `"true"`, `1`, etc.) |
+| `termsAcceptedAt` | string (ISO date) | no | Server defaults to “now” if omitted |
+| `whatsappSameAsMobile` | boolean/string | no | Default `false` |
+| `whatsappCountryCode` | string | no | |
+| `whatsappPhone` | string | no | |
+| `dob` | string | no | Date string |
+| `gender` | string | no | One of: `male`, `female`, `other`, `boy`, `girl`, `guess` |
+| `country`, `state`, `city` | string | no | |
+| `primaryHealthConcern` | string (ObjectId) | no | |
+| `fcm_id` | string | no | |
+| `profileImage` | string | no | URL/path when not uploading a file |
+ 
+**Additional errors (register)**
+ 
+| Status | `message` (from controller) |
+|--------|-----------------------------|
+| `400` | `Name, email, and phone are required` |
+| `400` | `Terms and conditions must be accepted to register.` |
+| `400` | `Invalid terms acceptance date.` |
+| `400` | `Invalid gender` |
+| `400` | `A valid 6-digit registration code is required.` |
+| `400` | `Invalid primary health concern id` (bad ObjectId) |
+| `400` | `Invalid or expired registration code.` |
+| `409` | `Email is already registered` / `Phone number is already registered` |
+ 
+**Success `201`**
+ 
+```json
+{
+  "message": "Registered successfully",
+  "user": { },
+  "token": "<jwt>"
+}
+```
+ 
+```bash
+curl -s -X POST "http://localhost:5000/api/user/auth/register" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"name\": \"Jane Doe\",
+    \"email\": \"user@example.com\",
+    \"phone\": \"9876543210\",
+    \"phoneCountryCode\": \"+91\",
+    \"otp\": \"123456\",
+    \"password\": \"SecretPass1\",
+    \"termsAccepted\": true,
+    \"whatsappSameAsMobile\": true
+  }"
+```
+ 
+**Register with profile image (multipart)**
+ 
+```bash
+curl -s -X POST "http://localhost:5000/api/user/auth/register" \
+  -F "name=Jane Doe" \
+  -F "email=user@example.com" \
+  -F "phone=9876543210" \
+  -F "phoneCountryCode=+91" \
+  -F "otp=123456" \
+  -F "termsAccepted=true" \
+  -F "file=@/path/to/photo.jpg"
+```
+ 
 ---
-
-## Quick endpoint index
-
+ 
+## Login
+ 
+Identify the user with **`email`** **or** **`phone` + `phoneCountryCode`** (default `+91`). If both are sent, lookup uses **`email` first** (see `findUserByLoginIdentifier` in `authController.js`).
+ 
+### Send login OTP
+ 
+`POST /user/auth/send-login-otp`
+ 
+Resolves the account with **`email`** if provided (non-empty), otherwise with **`phone` + `phoneCountryCode`** (default `+91`). Sending both uses **email first**.
+ 
+**Body**
+ 
+| Field | Type | Required |
+|--------|------|----------|
+| `email` | string | one of email or phone |
+| `phone` | string | one of email or phone |
+| `phoneCountryCode` | string | no (required with `phone` lookup) |
+ 
+**Errors**
+ 
+| Status | When |
+|--------|------|
+| `400` | Neither email nor phone provided (`Email or phone is required`) |
+ 
+**Success `200` — user found**
+ 
+Stores a new 6-digit OTP on the user; expires in **10 minutes**.
+ 
+```json
+{
+  "message": "Login code sent.",
+  "otp": "654321"
+}
+```
+ 
+> **Note:** `otp` is returned in the JSON for now (`TODO` in code: SMS/email). Do not rely on this in production.
+ 
+**Success `200` — user not found**
+ 
+```json
+{
+  "message": "User not found"
+}
+```
+ 
+No `otp` field. (This differs from a fully generic response; clients can treat both `200` shapes as final.)
+ 
+```bash
+curl -s -X POST "http://localhost:5000/api/user/auth/send-login-otp" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"user@example.com\"}"
+```
+ 
+```bash
+curl -s -X POST "http://localhost:5000/api/user/auth/send-login-otp" \
+  -H "Content-Type: application/json" \
+  -d "{\"phone\":\"9876543210\",\"phoneCountryCode\":\"+91\"}"
+```
+ 
+---
+ 
+### Login (password or OTP)
+ 
+`POST /user/auth/login`
+ 
+**Body**
+ 
+| Field | Type | Required |
+|--------|------|----------|
+| `email` or `phone` + `phoneCountryCode` | | yes |
+| `password` | string | one of password or `otp` |
+| `otp` | string | one of password or `otp` (6 digits; call `send-login-otp` first) |
+ 
+**Behaviour (matches `authController.login`)**
+ 
+- If **`otp`** is non-empty after trim, it is checked **first** (even if `password` is also sent). It must match the stored login OTP and `otpExpire` must be in the future. On success, `otp` / `otpExpire` are cleared on the user document.
+- Else if **`password`** is non-empty: compared with `passwordHash` when present.
+- Else: **`400`** `Provide a password or a 6-digit login code (OTP).`
+- Missing identifier (no email and no phone): **`400`** `Email or phone is required` (from `findUserByLoginIdentifier`).
+ 
+**Errors**
+ 
+| Status | `message` |
+|--------|-----------|
+| `400` | `Email or phone is required` |
+| `400` | `Provide a password or a 6-digit login code (OTP).` |
+| `401` | `Invalid credentials` (user not found) |
+| `401` | `Invalid or expired login code` |
+| `401` | `No password on file. Request a login code instead.` |
+| `403` | `Account is blocked` / `Account is inactive` |
+ 
+Blocked / inactive are enforced **after** a successful password or OTP check (`assertUserCanLogin`).
+ 
+**Success `200`**
+ 
+```json
+{
+  "message": "Login successful",
+  "user": { },
+  "token": "<jwt>"
+}
+```
+ 
+```bash
+curl -s -X POST "http://localhost:5000/api/user/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"user@example.com\",\"password\":\"SecretPass1\"}"
+```
+ 
+```bash
+curl -s -X POST "http://localhost:5000/api/user/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"user@example.com\",\"otp\":\"654321\"}"
+```
+ 
+---
+ 
+## Forgot password
+ 
+`POST /user/auth/forgot-password`
+ 
+**Body:** `{ "email": "user@example.com" }`
+ 
+**Errors:** `400` `Email is required` if `email` is missing.
+ 
+**Success `200`:** Same generic message whether or not the user exists. If a user exists, a reset token is stored (1 hour TTL). In **`NODE_ENV=development`**, the JSON may include **`resetToken`** for testing.
+ 
+```bash
+curl -s -X POST "http://localhost:5000/api/user/auth/forgot-password" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"user@example.com\"}"
+```
+ 
+---
+ 
+## Reset password
+ 
+`POST /user/auth/reset-password`
+ 
+**Body:** `{ "token": "<from forgot-password>", "password": "NewSecret1" }`
+ 
+**Errors:** `400` `Token and new password are required`, or `Invalid or expired reset token`.
+ 
+```bash
+curl -s -X POST "http://localhost:5000/api/user/auth/reset-password" \
+  -H "Content-Type: application/json" \
+  -d "{\"token\":\"YOUR_RESET_TOKEN\",\"password\":\"NewSecret1\"}"
+```
+ 
+---
+ 
+## Current user (protected)
+ 
+### Get profile
+ 
+`GET /user/auth/me`
+ 
+```bash
+curl -s "http://localhost:5000/api/user/auth/me" \
+  -H "Authorization: Bearer YOUR_JWT"
+```
+ 
+---
+ 
+### Update profile
+ 
+`PATCH /user/auth/me`
+ 
+JSON or multipart (`file` for new avatar). Updatable fields include: `name`, `phoneCountryCode`, `phone`, `whatsappSameAsMobile`, `whatsappCountryCode`, `whatsappPhone`, `dob`, `gender`, `country`, `state`, `city`, `primaryHealthConcern`, `fcm_id`, `profileImage`. **Terms acceptance cannot be changed** here.
+ 
+```bash
+curl -s -X PATCH "http://localhost:5000/api/user/auth/me" \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"Jane Q. Doe\",\"city\":\"Mumbai\"}"
+```
+ 
+---
+ 
+### Delete account
+ 
+`DELETE /user/auth/me`
+ 
+```bash
+curl -s -X DELETE "http://localhost:5000/api/user/auth/me" \
+  -H "Authorization: Bearer YOUR_JWT"
+```
+ 
+---
+ 
+## Quick reference
+ 
 | Method | Path | Auth |
 |--------|------|------|
-| GET | `/api/health` | — |
-| POST | `/api/user/auth/register` | — |
-| POST | `/api/user/auth/login` | — |
-| POST | `/api/user/auth/forgot-password` | — |
-| POST | `/api/user/auth/reset-password` | — |
-| GET | `/api/user/auth/me` | User JWT |
-| PATCH | `/api/user/auth/me` | User JWT |
-| DELETE | `/api/user/auth/me` | User JWT |
-| POST | `/api/vendor/auth/register` | — |
-| POST | `/api/vendor/auth/login` | — |
-| POST | `/api/vendor/auth/forgot-password` | — |
-| POST | `/api/vendor/auth/reset-password` | — |
-| GET | `/api/vendor/auth/me` | Vendor JWT |
-| PATCH | `/api/vendor/auth/me` | Vendor JWT |
-| DELETE | `/api/vendor/auth/me` | Vendor JWT |
-| POST | `/api/admin/auth/register` | — |
-| POST | `/api/admin/auth/login` | — |
-| POST | `/api/admin/auth/forgot-password` | — |
-| POST | `/api/admin/auth/reset-password` | — |
-| GET | `/api/admin/auth/me` | Admin JWT |
-| PATCH | `/api/admin/auth/me` | Admin JWT |
-| DELETE | `/api/admin/auth/me` | Admin JWT |
-| POST | `/api/delivery/auth/register` | — |
-| POST | `/api/delivery/auth/login` | — |
-| POST | `/api/delivery/auth/forgot-password` | — |
-| POST | `/api/delivery/auth/reset-password` | — |
-| GET | `/api/delivery/auth/me` | Delivery JWT |
-| PATCH | `/api/delivery/auth/me` | Delivery JWT |
-| DELETE | `/api/delivery/auth/me` | Delivery JWT |
-| GET | `/api/admin/users` | Admin JWT |
-| GET | `/api/admin/users/:id` | Admin JWT |
-| POST | `/api/admin/users` | Admin JWT |
-| PATCH | `/api/admin/users/:id` | Admin JWT |
-| DELETE | `/api/admin/users/:id` | Admin JWT |
-| GET | `/api/admin/vendors` | Admin JWT |
-| GET | `/api/admin/vendors/:id` | Admin JWT |
-| POST | `/api/admin/vendors` | Admin JWT |
-| PATCH | `/api/admin/vendors/:id` | Admin JWT |
-| DELETE | `/api/admin/vendors/:id` | Admin JWT |
-| GET | `/api/admin/delivery-boys` | Admin JWT |
-| GET | `/api/admin/delivery-boys/:id` | Admin JWT |
-| POST | `/api/admin/delivery-boys` | Admin JWT |
-| PATCH | `/api/admin/delivery-boys/:id` | Admin JWT |
-| DELETE | `/api/admin/delivery-boys/:id` | Admin JWT |
-
----
-
-## Health
-
-### `GET /api/health`
-
-```bash
-curl --location --request GET 'http://localhost:5000/api/health'
-```
-
-**Example (200)**
-
-```json
-{
-  "status": "ok",
-  "uptime": 12.345,
-  "timestamp": "2026-04-21T12:00:00.000Z"
-}
-```
-
----
-
-## Profile images & multipart
-
-- Form field for uploads: **`file`** (`utils/fileUploader.js`: allowed MIME types, **50 MB** max).
-- **Register** / **PATCH …/auth/me**: JSON (`Content-Type: application/json`) **or** `multipart/form-data` with the same field names as JSON plus optional **`file`**.
-- **PATCH** JSON: `profileImage` set to `""` or `null` clears image and deletes prior local `/uploads/...` file when applicable.
-
-**Download an uploaded file**
-
-```bash
-curl --location --request GET 'http://localhost:5000/uploads/user/file-1234567890.jpg' \
---output saved.jpg
-```
-
----
-
-## User auth — `/api/user/auth`
-
-JWT **`role`:** `user`. **Status:** `active` | `inactive` | `blocked`.
-
-### `POST /api/user/auth/register` (JSON)
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/user/auth/register' \
---header 'Content-Type: application/json' \
---data-raw '{
-  "name": "Jane User",
-  "email": "jane@example.com",
-  "password": "secret123",
-  "phone": "+15551234567",
-  "gender": "female"
-}'
-```
-
-### `POST /api/user/auth/register` (multipart + profile file)
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/user/auth/register' \
---form 'name=Jane User' \
---form 'email=jane2@example.com' \
---form 'password=secret123' \
---form 'phone=+15551234567' \
---form 'gender=female' \
---form 'file=@"/path/to/photo.jpg"'
-```
-
-### `POST /api/user/auth/login`
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/user/auth/login' \
---header 'Content-Type: application/json' \
---data-raw '{
-  "email": "jane@example.com",
-  "password": "secret123"
-}'
-```
-
-### `POST /api/user/auth/forgot-password`
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/user/auth/forgot-password' \
---header 'Content-Type: application/json' \
---data-raw '{
-  "email": "jane@example.com"
-}'
-```
-
-### `POST /api/user/auth/reset-password`
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/user/auth/reset-password' \
---header 'Content-Type: application/json' \
---data-raw '{
-  "token": "<resetToken>",
-  "password": "newSecret456"
-}'
-```
-
-### `GET /api/user/auth/me`
-
-```bash
-curl --location --request GET 'http://localhost:5000/api/user/auth/me' \
---header 'Authorization: Bearer YOUR_USER_TOKEN'
-```
-
-### `PATCH /api/user/auth/me` (multipart)
-
-```bash
-curl --location --request PATCH 'http://localhost:5000/api/user/auth/me' \
---header 'Authorization: Bearer YOUR_USER_TOKEN' \
---form 'name=Jane Q. User' \
---form 'phone=+15551230000' \
---form 'file=@"/path/to/new-photo.jpg"'
-```
-
-### `PATCH /api/user/auth/me` (JSON)
-
-```bash
-curl --location --request PATCH 'http://localhost:5000/api/user/auth/me' \
---header 'Authorization: Bearer YOUR_USER_TOKEN' \
---header 'Content-Type: application/json' \
---data-raw '{
-  "fcm_id": "device-token-here",
-  "profileImage": ""
-}'
-```
-
-### `DELETE /api/user/auth/me`
-
-```bash
-curl --location --request DELETE 'http://localhost:5000/api/user/auth/me' \
---header 'Authorization: Bearer YOUR_USER_TOKEN'
-```
-
----
-
-## Vendor auth — `/api/vendor/auth`
-
-JWT **`role`:** `vendor`. **Login** requires **`active`** (not `pending`).
-
-### `POST /api/vendor/auth/register` (JSON)
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/vendor/auth/register' \
---header 'Content-Type: application/json' \
---data-raw '{
-  "name": "Acme Owner",
-  "email": "vendor@example.com",
-  "password": "secret123",
-  "phone": "+15559876543",
-  "businessName": "Acme Store",
-  "gstNumber": "22AAAAA0000A1Z5"
-}'
-```
-
-### `POST /api/vendor/auth/login`
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/vendor/auth/login' \
---header 'Content-Type: application/json' \
---data-raw '{
-  "email": "vendor@example.com",
-  "password": "secret123"
-}'
-```
-
-### `POST /api/vendor/auth/forgot-password`
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/vendor/auth/forgot-password' \
---header 'Content-Type: application/json' \
---data-raw '{"email":"vendor@example.com"}'
-```
-
-### `POST /api/vendor/auth/reset-password`
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/vendor/auth/reset-password' \
---header 'Content-Type: application/json' \
---data-raw '{"token":"<resetToken>","password":"newSecret456"}'
-```
-
-### `GET /api/vendor/auth/me`
-
-```bash
-curl --location --request GET 'http://localhost:5000/api/vendor/auth/me' \
---header 'Authorization: Bearer YOUR_VENDOR_TOKEN'
-```
-
-### `PATCH /api/vendor/auth/me` (JSON)
-
-```bash
-curl --location --request PATCH 'http://localhost:5000/api/vendor/auth/me' \
---header 'Authorization: Bearer YOUR_VENDOR_TOKEN' \
---header 'Content-Type: application/json' \
---data-raw '{"businessName":"Acme Store LLC","gstNumber":""}'
-```
-
-### `PATCH /api/vendor/auth/me` (file only)
-
-```bash
-curl --location --request PATCH 'http://localhost:5000/api/vendor/auth/me' \
---header 'Authorization: Bearer YOUR_VENDOR_TOKEN' \
---form 'file=@"/path/to/logo.png"'
-```
-
-### `DELETE /api/vendor/auth/me`
-
-```bash
-curl --location --request DELETE 'http://localhost:5000/api/vendor/auth/me' \
---header 'Authorization: Bearer YOUR_VENDOR_TOKEN'
-```
-
----
-
-## Admin auth — `/api/admin/auth`
-
-JWT **`role`:** `admin`.
-
-### `POST /api/admin/auth/register`
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/admin/auth/register' \
---header 'Content-Type: application/json' \
---data-raw '{
-  "name": "Site Admin",
-  "email": "admin@example.com",
-  "password": "secret123",
-  "phone": "+15551110000"
-}'
-```
-
-### `POST /api/admin/auth/login`
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/admin/auth/login' \
---header 'Content-Type: application/json' \
---data-raw '{
-  "email": "admin@example.com",
-  "password": "secret123"
-}'
-```
-
-### `POST /api/admin/auth/forgot-password`
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/admin/auth/forgot-password' \
---header 'Content-Type: application/json' \
---data-raw '{"email":"admin@example.com"}'
-```
-
-### `POST /api/admin/auth/reset-password`
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/admin/auth/reset-password' \
---header 'Content-Type: application/json' \
---data-raw '{"token":"<resetToken>","password":"newSecret456"}'
-```
-
-### `GET /api/admin/auth/me`
-
-```bash
-curl --location --request GET 'http://localhost:5000/api/admin/auth/me' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
-```
-
-### `PATCH /api/admin/auth/me`
-
-```bash
-curl --location --request PATCH 'http://localhost:5000/api/admin/auth/me' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
---header 'Content-Type: application/json' \
---data-raw '{"name":"Super Admin","phone":"+15550001111"}'
-```
-
-### `DELETE /api/admin/auth/me`
-
-```bash
-curl --location --request DELETE 'http://localhost:5000/api/admin/auth/me' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
-```
-
----
-
-## Delivery auth — `/api/delivery/auth`
-
-JWT **`role`:** `deliveryBoy`. **Login** requires **`active`**.
-
-### `POST /api/delivery/auth/register`
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/delivery/auth/register' \
---header 'Content-Type: application/json' \
---data-raw '{
-  "name": "Delivery Partner",
-  "email": "rider@example.com",
-  "password": "secret123",
-  "phone": "+15552223333",
-  "licenseNumber": "DL-12345",
-  "vehicleType": "bike"
-}'
-```
-
-### `POST /api/delivery/auth/login`
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/delivery/auth/login' \
---header 'Content-Type: application/json' \
---data-raw '{
-  "email": "rider@example.com",
-  "password": "secret123"
-}'
-```
-
-### `POST /api/delivery/auth/forgot-password`
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/delivery/auth/forgot-password' \
---header 'Content-Type: application/json' \
---data-raw '{"email":"rider@example.com"}'
-```
-
-### `POST /api/delivery/auth/reset-password`
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/delivery/auth/reset-password' \
---header 'Content-Type: application/json' \
---data-raw '{"token":"<resetToken>","password":"newSecret456"}'
-```
-
-### `GET /api/delivery/auth/me`
-
-```bash
-curl --location --request GET 'http://localhost:5000/api/delivery/auth/me' \
---header 'Authorization: Bearer YOUR_DELIVERY_TOKEN'
-```
-
-### `PATCH /api/delivery/auth/me`
-
-```bash
-curl --location --request PATCH 'http://localhost:5000/api/delivery/auth/me' \
---header 'Authorization: Bearer YOUR_DELIVERY_TOKEN' \
---header 'Content-Type: application/json' \
---data-raw '{"vehicleType":"scooter","licenseNumber":"DL-99999"}'
-```
-
-### `DELETE /api/delivery/auth/me`
-
-```bash
-curl --location --request DELETE 'http://localhost:5000/api/delivery/auth/me' \
---header 'Authorization: Bearer YOUR_DELIVERY_TOKEN'
-```
-
----
-
-## Admin: users CRUD — `/api/admin/users`
-
-All requests need **`Authorization: Bearer YOUR_ADMIN_TOKEN`**.
-
-### `GET /api/admin/users` (list + query)
-
-Query: `page`, `limit` (max 100), optional `status`, optional `search`.
-
-```bash
-curl --location --request GET 'http://localhost:5000/api/admin/users?page=1&limit=10&status=active&search=jane' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
-```
-
-### `GET /api/admin/users/:id`
-
-```bash
-curl --location --request GET 'http://localhost:5000/api/admin/users/507f1f77bcf86cd799439011' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
-```
-
-### `POST /api/admin/users` (JSON)
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/admin/users' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
---header 'Content-Type: application/json' \
---data-raw '{
-  "name": "Managed User",
-  "email": "managed@example.com",
-  "password": "tempPassword123",
-  "phone": "+15559990000",
-  "status": "active"
-}'
-```
-
-### `POST /api/admin/users` (multipart + avatar)
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/admin/users' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
---form 'name=Managed User' \
---form 'email=managed2@example.com' \
---form 'password=tempPassword123' \
---form 'phone=+15559990001' \
---form 'status=active' \
---form 'file=@"/path/to/avatar.jpg"'
-```
-
-### `PATCH /api/admin/users/:id`
-
-```bash
-curl --location --request PATCH 'http://localhost:5000/api/admin/users/507f1f77bcf86cd799439011' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
---header 'Content-Type: application/json' \
---data-raw '{"status":"blocked","phone":"+15559991111"}'
-```
-
-### `DELETE /api/admin/users/:id`
-
-```bash
-curl --location --request DELETE 'http://localhost:5000/api/admin/users/507f1f77bcf86cd799439011' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
-```
-
----
-
-## Admin: vendors CRUD — `/api/admin/vendors`
-
-### `GET /api/admin/vendors`
-
-```bash
-curl --location --request GET 'http://localhost:5000/api/admin/vendors?page=1&limit=20&status=pending' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
-```
-
-### `GET /api/admin/vendors/:id`
-
-```bash
-curl --location --request GET 'http://localhost:5000/api/admin/vendors/507f1f77bcf86cd799439011' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
-```
-
-### `POST /api/admin/vendors`
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/admin/vendors' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
---header 'Content-Type: application/json' \
---data-raw '{
-  "name": "Owner",
-  "email": "newvendor@example.com",
-  "password": "secret123",
-  "phone": "+15558887777",
-  "businessName": "New Shop",
-  "status": "active"
-}'
-```
-
-### `PATCH /api/admin/vendors/:id`
-
-```bash
-curl --location --request PATCH 'http://localhost:5000/api/admin/vendors/507f1f77bcf86cd799439011' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
---header 'Content-Type: application/json' \
---data-raw '{"status":"active"}'
-```
-
-### `DELETE /api/admin/vendors/:id`
-
-```bash
-curl --location --request DELETE 'http://localhost:5000/api/admin/vendors/507f1f77bcf86cd799439011' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
-```
-
----
-
-## Admin: delivery partners CRUD — `/api/admin/delivery-boys`
-
-### `GET /api/admin/delivery-boys`
-
-```bash
-curl --location --request GET 'http://localhost:5000/api/admin/delivery-boys?search=bike&limit=25' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
-```
-
-### `GET /api/admin/delivery-boys/:id`
-
-```bash
-curl --location --request GET 'http://localhost:5000/api/admin/delivery-boys/507f1f77bcf86cd799439011' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
-```
-
-### `POST /api/admin/delivery-boys`
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/admin/delivery-boys' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
---header 'Content-Type: application/json' \
---data-raw '{
-  "name": "Rider Two",
-  "email": "rider2@example.com",
-  "password": "secret123",
-  "phone": "+15553334444",
-  "vehicleType": "bike",
-  "status": "active"
-}'
-```
-
-### `PATCH /api/admin/delivery-boys/:id`
-
-```bash
-curl --location --request PATCH 'http://localhost:5000/api/admin/delivery-boys/507f1f77bcf86cd799439011' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
---header 'Content-Type: application/json' \
---data-raw '{"status":"inactive"}'
-```
-
-### `DELETE /api/admin/delivery-boys/:id`
-
-```bash
-curl --location --request DELETE 'http://localhost:5000/api/admin/delivery-boys/507f1f77bcf86cd799439011' \
---header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
-```
-
----
-
-## HTTP status codes
-
-| Code | Typical meaning |
-|------|------------------|
-| 200 | OK |
-| 201 | Created |
-| 400 | Validation / bad request |
-| 401 | Auth failed / invalid JWT |
-| 403 | Wrong role or account blocked/inactive |
-| 404 | Not found |
-| 409 | Duplicate email |
-| 413 | File too large (Multer) |
-| 500 | Server error |
-
----
-
-## JWT & roles
-
-- Tokens use **`JWT_SECRET`** / expiry from `.env` (see `.env.example`).
-- Each **`Authorization`** token must match the route’s app (user vs vendor vs admin vs delivery).
-- **`blocked`** / **`inactive`** cannot use protected routes.
-
----
-
-## Shell & Windows notes
-
-- **Git Bash / macOS / Linux:** paste blocks as-is.
-- **Windows CMD:** use straight single quotes as shown, or escape double quotes inside `--data-raw`.
-- **PowerShell:** prefer **Postman import** for JSON; or run **`curl.exe`** (not the `curl` alias for `Invoke-WebRequest`):
-
-```powershell
-curl.exe --location --request GET 'http://localhost:5000/api/health'
-```
-
-- **JSON from file (any shell):**
-
-```bash
-curl --location --request POST 'http://localhost:5000/api/user/auth/login' \
---header 'Content-Type: application/json' \
---data-raw "@body-login.json"
-```
-
-`body-login.json`:
-
-```json
-{
-  "email": "jane@example.com",
-  "password": "secret123"
-}
-```
+| `POST` | `/api/user/auth/send-register-otp` | No |
+| `POST` | `/api/user/auth/register` | No |
+| `POST` | `/api/user/auth/send-login-otp` | No |
+| `POST` | `/api/user/auth/login` | No |
+| `POST` | `/api/user/auth/forgot-password` | No |
+| `POST` | `/api/user/auth/reset-password` | No |
+| `GET` | `/api/user/auth/me` | Bearer |
+| `PATCH` | `/api/user/auth/me` | Bearer |
+| `DELETE` | `/api/user/auth/me` | Bearer |
+ 
+Port defaults to **`5000`** unless `PORT` is set in the environment.

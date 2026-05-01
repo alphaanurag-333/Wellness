@@ -16,6 +16,7 @@ const subCategoryUpload = createUploader("sub-category").single("file");
 const bannerUpload = createUploader("banner").single("file");
 const promotionUpload = createUploader("promotion").single("file");
 const notificationUpload = createUploader("notification").single("file");
+const healthConcernUpload = createUploader("health-concern").single("file");
 
 exports.optionalUserFile = optionalMultipart(userUpload);
 exports.optionalAdminFile = optionalMultipart(adminUpload);
@@ -24,3 +25,4 @@ exports.optionalSubCategoryFile = optionalMultipart(subCategoryUpload);
 exports.optionalBannerFile = optionalMultipart(bannerUpload);
 exports.optionalPromotionFile = optionalMultipart(promotionUpload);
 exports.optionalNotificationFile = optionalMultipart(notificationUpload);
+exports.optionalHealthConcernFile = optionalMultipart(healthConcernUpload);

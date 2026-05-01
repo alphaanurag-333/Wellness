@@ -128,10 +128,11 @@ export function UserList() {
       return;
     }
 
-    const headers = ["Name", "Email", "Phone", "Gender", "Status", "DOB", "Created At", "Updated At", "User ID"];
+    const headers = ["Name", "Email", "Phone CC", "Phone", "Gender", "Status", "DOB", "Created At", "Updated At", "User ID"];
     const rows = users.map((u) => [
       u.name || "",
       u.email || "",
+      u.phoneCountryCode || "",
       u.phone || "",
       u.gender || "",
       u.status || "",
@@ -188,7 +189,7 @@ export function UserList() {
               <option value="">All status</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
-              {/* <option value="blocked">Blocked</option> */}
+              <option value="blocked">Blocked</option>
             </select>
           </form>
           <button type="button" className="btn btn--ghost" onClick={handleExportCsv}>
@@ -212,7 +213,8 @@ export function UserList() {
             <tr>
               <th>S No.</th>
               <th>User Info</th>
-              <th>Contact Details</th>
+              <th>Mobile Number</th>
+              <th>Country & State</th>
               <th>Created At</th>
               <th>Status</th>
               <th className="data-table__actions-col">Actions</th>
@@ -244,13 +246,15 @@ export function UserList() {
                         </span>
                         <div>
                           <div className="user-cell__name">{u.name || "—"}</div>
-                          <div className="user-cell__id data-table__mono">{u.gender || "—"}</div>
+                          <div className="user-cell__id data-table__mono">{u.email || "—"}</div>
                         </div>
                       </div>
                     </td>
                     <td>
-                      <div className="user-cell__muted">{u.email}</div>
-                      <div className="user-cell__muted">{u.phone || "—"}</div>
+                      <div className="user-cell__muted">{[u.phoneCountryCode, u.phone].filter(Boolean).join(" ") || "—"}</div>
+                    </td>
+                    <td>
+                      <div className="user-cell__muted"> {u.state || "—"} ({u.country || "—"})</div>
                     </td>
                     <td className="data-table__muted">{formatJoined(u.createdAt)}</td>
                     <td>
