@@ -8,4 +8,17 @@ function publicUploadPathFromFile(req, folder) {
   return `/uploads/${folder}/${req.file.filename}`;
 }
 
-module.exports = { publicUploadPathFromFile };
+/** Multer `.fields()` — first file for `fieldName` under `uploads/<folder>/`. */
+function publicUploadPathFromFields(req, folder, fieldName) {
+  if (!req.files || !req.files[fieldName]) {
+    return undefined;
+  }
+  const f = req.files[fieldName];
+  const file = Array.isArray(f) ? f[0] : f;
+  if (!file) {
+    return undefined;
+  }
+  return `/uploads/${folder}/${file.filename}`;
+}
+
+module.exports = { publicUploadPathFromFile, publicUploadPathFromFields };

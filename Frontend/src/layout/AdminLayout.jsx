@@ -24,6 +24,7 @@ function titleFromPath(pathname) {
   if (/^\/admin\/settings\/?$/.test(p)) return "App Settings";
 
   if (/^\/admin\/health-concerns\/?$/.test(p)) return "Health concerns";
+  if (/^\/admin\/transformations\/?$/.test(p)) return "Transformations";
 
   if (p.startsWith("/admin/static-pages")) {
     if (/^\/admin\/static-pages\/[^/]+\/edit\/?$/.test(p)) return "Edit static page";

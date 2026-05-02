@@ -17,6 +17,10 @@ const bannerUpload = createUploader("banner").single("file");
 const promotionUpload = createUploader("promotion").single("file");
 const notificationUpload = createUploader("notification").single("file");
 const healthConcernUpload = createUploader("health-concern").single("file");
+const transformationUpload = createUploader("transformation").fields([
+  { name: "oldImage", maxCount: 1 },
+  { name: "newImage", maxCount: 1 },
+]);
 
 exports.optionalUserFile = optionalMultipart(userUpload);
 exports.optionalAdminFile = optionalMultipart(adminUpload);
@@ -26,3 +30,4 @@ exports.optionalBannerFile = optionalMultipart(bannerUpload);
 exports.optionalPromotionFile = optionalMultipart(promotionUpload);
 exports.optionalNotificationFile = optionalMultipart(notificationUpload);
 exports.optionalHealthConcernFile = optionalMultipart(healthConcernUpload);
+exports.optionalTransformationFiles = optionalMultipart(transformationUpload);

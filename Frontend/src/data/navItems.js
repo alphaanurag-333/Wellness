@@ -33,6 +33,7 @@ export const navItems = [
   { to: "awcs", label: "AWCs", icon: "list" },
   { to: "banners", label: "Banner Management", icon: "image" },
   { to: "health-concerns", label: "Health concerns", icon: "list" },
+  { to: "transformations", label: "Transformations", icon: "image" },
   { to: "faq", label: "FAQ", icon: "help" },
   { to: "notifications", label: "Notifications", icon: "bell" },
   { to: "static-pages", label: "Static Pages", icon: "file" },

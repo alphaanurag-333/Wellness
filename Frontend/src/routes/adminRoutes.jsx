@@ -10,6 +10,7 @@ import { StaticPageList } from "../pages/static-pages/StaticPageList.jsx";
 import { StaticPageUpdate } from "../pages/static-pages/StaticPageUpdate.jsx";
 import { NotificationPage } from "../pages/notification/Notification.jsx";
 import { HealthConcernPage } from "../pages/healthConcern/HealthConcernPage.jsx";
+import { TransformationPage } from "../pages/transformation/TransformationPage.jsx";
 import {SectionPage} from "../pages/SectionPage.jsx";
 import { UserAdd } from "../pages/user/UserAdd.jsx";
 import { UserEdit } from "../pages/user/UserEdit.jsx";
@@ -44,6 +45,7 @@ export const adminRouteTree = (
 
     <Route path="banners" element={<BannerPage />} />
     <Route path="health-concerns" element={<HealthConcernPage />} />
+    <Route path="transformations" element={<TransformationPage />} />
     <Route path="faq" element={<FaqPage />} />
     <Route path="notifications" element={<NotificationPage />} />
 
