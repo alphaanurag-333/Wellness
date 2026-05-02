@@ -48,6 +48,8 @@ exports.listNotifications = asyncHandler(async (req, res) => {
   ]);
 
   res.json({
+    status: true,
+    message: "Notifications fetched",
     notifications,
     pagination: {
       page,
@@ -62,7 +64,7 @@ exports.getNotificationById = asyncHandler(async (req, res) => {
   assertObjectId(req.params.id);
   const notification = await Notification.findById(req.params.id).lean();
   if (!notification) throw new AppError("Notification not found", 404);
-  res.json({ notification });
+  res.json({ status: true, message: "Notification fetched", notification });
 });
 
 exports.createNotification = asyncHandler(async (req, res) => {
@@ -94,7 +96,7 @@ exports.createNotification = asyncHandler(async (req, res) => {
       sentAt: new Date(),
     });
 
-    res.status(201).json({ message: "Notification created", notification });
+    res.status(201).json({ status: true, message: "Notification created", notification });
   } catch (error) {
     deleteUploadFileByPublicUrl(imageFromFile);
     throw error;
@@ -140,7 +142,7 @@ exports.updateNotification = asyncHandler(async (req, res) => {
   }
 
   await notification.save();
-  res.json({ message: "Notification updated", notification });
+  res.json({ status: true, message: "Notification updated", notification });
 });
 
 exports.deleteNotification = asyncHandler(async (req, res) => {
@@ -150,5 +152,5 @@ exports.deleteNotification = asyncHandler(async (req, res) => {
 
   deleteUploadFileByPublicUrl(notification.image);
   await Notification.findByIdAndDelete(notification._id);
-  res.json({ message: "Notification deleted" });
+  res.json({ status: true, message: "Notification deleted" });
 });

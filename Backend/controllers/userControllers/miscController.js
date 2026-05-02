@@ -8,6 +8,7 @@ const { asyncHandler } = require("../../utils/asyncHandler");
 exports.getActiveBanners = asyncHandler(async (req, res) => {
   const banners = await Banner.find({ status: "active" }).sort({ createdAt: -1 }).lean();
   res.json({
+    status: true,
     message: "Active banners",
     banners,
   });
@@ -16,6 +17,7 @@ exports.getActiveBanners = asyncHandler(async (req, res) => {
 exports.getActiveStaticPages = asyncHandler(async (req, res) => {
   const pages = await Page.find({ status: "active" }).sort({ title: 1 }).lean();
   res.json({
+    status: true,
     message: "Active pages",
     pages,
   });
@@ -31,6 +33,7 @@ exports.getActivePageBySlug = asyncHandler(async (req, res) => {
     throw new AppError("Page not found", 404);
   }
   res.json({
+    status: true,
     message: "Page fetched",
     page,
   });
@@ -39,6 +42,7 @@ exports.getActivePageBySlug = asyncHandler(async (req, res) => {
 exports.getActiveFaqs = asyncHandler(async (req, res) => {
   const faqs = await Faq.find({ status: "active" }).sort({ createdAt: 1 }).lean();
   res.json({
+    status: true,
     message: "Active FAQs",
     faqs,
   });
@@ -47,6 +51,7 @@ exports.getActiveFaqs = asyncHandler(async (req, res) => {
 exports.getActiveHealthConcerns = asyncHandler(async (req, res) => {
   const healthConcerns = await HealthConcern.find({ status: "active" }).sort({ title: 1 }).lean();
   res.json({
+    status: true,
     message: "Active health concerns",
     healthConcerns,
   });

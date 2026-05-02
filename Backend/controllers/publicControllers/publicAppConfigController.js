@@ -37,7 +37,8 @@ function toPublicAppConfig(doc) {
 exports.getPublicAppConfig = asyncHandler(async (req, res) => {
   const config = await AppConfig.findOne().lean();
   res.json({
-    message: "Public app configuration",
+    status: true,
+    message: "Public app configuration fetched",
     data: toPublicAppConfig(config),
   });
 });

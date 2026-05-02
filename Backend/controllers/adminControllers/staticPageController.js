@@ -6,6 +6,7 @@ const { assertObjectId } = require("../../utils/assertObjectId");
 exports.createPage = asyncHandler(async (req, res) => {
   const page = await Page.create(req.body);
   res.status(201).json({
+    status: true,
     message: "Page created",
     data: page,
   });
@@ -14,6 +15,7 @@ exports.createPage = asyncHandler(async (req, res) => {
 exports.getAllPages = asyncHandler(async (req, res) => {
   const pages = await Page.find().sort({ updatedAt: -1 }).lean();
   res.json({
+    status: true,
     message: "Pages fetched",
     total: pages.length,
     data: pages,
@@ -26,7 +28,7 @@ exports.getPageById = asyncHandler(async (req, res) => {
   if (!page) {
     throw new AppError("Page not found", 404);
   }
-  res.json({ message: "Page fetched", data: page });
+  res.json({ status: true, message: "Page fetched", data: page });
 });
 
 exports.getPageBySlug = asyncHandler(async (req, res) => {
@@ -38,7 +40,7 @@ exports.getPageBySlug = asyncHandler(async (req, res) => {
   if (!page) {
     throw new AppError("Page not found", 404);
   }
-  res.json({ message: "Page fetched", data: page });
+  res.json({ status: true, message: "Page fetched", data: page });
 });
 
 exports.updatePage = asyncHandler(async (req, res) => {
@@ -50,7 +52,7 @@ exports.updatePage = asyncHandler(async (req, res) => {
   if (!page) {
     throw new AppError("Page not found", 404);
   }
-  res.json({ message: "Page updated", data: page });
+  res.json({ status: true, message: "Page updated", data: page });
 });
 
 exports.deletePage = asyncHandler(async (req, res) => {
@@ -59,5 +61,5 @@ exports.deletePage = asyncHandler(async (req, res) => {
   if (!page) {
     throw new AppError("Page not found", 404);
   }
-  res.json({ message: "Page deleted" });
+  res.json({ status: true, message: "Page deleted" });
 });

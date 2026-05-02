@@ -109,6 +109,8 @@ exports.listUsers = asyncHandler(async (req, res) => {
   ]);
 
   res.json({
+    status: true,
+    message: "Users fetched",
     users: users.map((u) => toPublicProfile(u)),
     pagination: {
       page,
@@ -125,7 +127,7 @@ exports.getUserById = asyncHandler(async (req, res) => {
   if (!user) {
     throw new AppError("User not found", 404);
   }
-  res.json({ user: toPublicProfile(user) });
+  res.json({ status: true, message: "User fetched", user: toPublicProfile(user) });
 });
 
 exports.createUser = asyncHandler(async (req, res) => {
@@ -236,6 +238,7 @@ exports.createUser = asyncHandler(async (req, res) => {
   }
 
   res.status(201).json({
+    status: true,
     message: "User created",
     user: toPublicProfile(
       await User.findById(user._id).select("-passwordHash")
@@ -383,6 +386,7 @@ exports.updateUser = asyncHandler(async (req, res) => {
 
   await user.save();
   res.json({
+    status: true,
     message: "User updated",
     user: toPublicProfile(await User.findById(user._id).select("-passwordHash")),
   });
@@ -396,5 +400,5 @@ exports.deleteUser = asyncHandler(async (req, res) => {
   }
   deleteUploadFileByPublicUrl(user.profileImage);
   await User.findByIdAndDelete(req.params.id);
-  res.json({ message: "User deleted" });
+  res.json({ status: true, message: "User deleted" });
 });

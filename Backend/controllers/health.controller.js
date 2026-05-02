@@ -1,5 +1,7 @@
 exports.getHealth = (req, res) => {
-  res.status(200).json({
+  res.json({
+    status: true,
+    message: "Health check",
     status: "ok",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),

@@ -30,6 +30,8 @@ exports.listFaqs = asyncHandler(async (req, res) => {
   ]);
 
   res.json({
+    status: true,
+    message: "FAQs fetched",
     faqs,
     pagination: {
       page,
@@ -44,7 +46,7 @@ exports.getFaqById = asyncHandler(async (req, res) => {
   assertObjectId(req.params.id);
   const faq = await Faq.findById(req.params.id).lean();
   if (!faq) throw new AppError("FAQ not found", 404);
-  res.json({ faq });
+  res.json({ status: true, message: "FAQ fetched", faq });
 });
 
 exports.createFaq = asyncHandler(async (req, res) => {
@@ -65,7 +67,7 @@ exports.createFaq = asyncHandler(async (req, res) => {
     status,
   });
 
-  res.status(201).json({ message: "FAQ created", faq });
+  res.status(201).json({ status: true, message: "FAQ created", faq });
 });
 
 exports.updateFaq = asyncHandler(async (req, res) => {
@@ -92,7 +94,7 @@ exports.updateFaq = asyncHandler(async (req, res) => {
   }
 
   await faq.save();
-  res.json({ message: "FAQ updated", faq });
+  res.json({ status: true, message: "FAQ updated", faq });
 });
 
 exports.deleteFaq = asyncHandler(async (req, res) => {
@@ -101,5 +103,5 @@ exports.deleteFaq = asyncHandler(async (req, res) => {
   if (!faq) throw new AppError("FAQ not found", 404);
 
   await Faq.findByIdAndDelete(faq._id);
-  res.json({ message: "FAQ deleted" });
+  res.json({ status: true, message: "FAQ deleted" });
 });

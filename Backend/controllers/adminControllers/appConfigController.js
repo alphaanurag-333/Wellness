@@ -23,6 +23,7 @@ exports.uploadAppConfigFiles = upload.fields([
 exports.getAppConfig = asyncHandler(async (req, res) => {
   const config = await AppConfig.findOne().lean();
   res.json({
+    status: true,
     message: "App configuration fetched",
     data: config || null,
   });
@@ -81,6 +82,7 @@ exports.createAppConfig = asyncHandler(async (req, res) => {
   });
 
   res.status(201).json({
+    status: true,
     message: "App configuration created",
     data: doc,
   });
@@ -135,6 +137,7 @@ exports.updateAppConfig = asyncHandler(async (req, res) => {
   await config.save();
 
   res.json({
+    status: true,
     message: "App configuration updated",
     data: config,
   });

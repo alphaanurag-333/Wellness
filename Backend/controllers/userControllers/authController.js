@@ -169,6 +169,7 @@ exports.sendRegisterOtp = asyncHandler(async (req, res) => {
 
   // TODO: deliver via SMS/email instead of response body in production.
   res.json({
+    status: true,
     message: "Registration code sent.",
     otp,
   });
@@ -286,6 +287,7 @@ exports.register = asyncHandler(async (req, res) => {
   const token = signAccessToken({ sub: user._id.toString(), role: "user" });
 
   res.status(201).json({
+    status: true,
     message: "Registered successfully",
     user: toPublicProfile(user),
     token,
@@ -296,10 +298,7 @@ exports.sendLoginOtp = asyncHandler(async (req, res) => {
   const { email, phone, phoneCountryCode } = req.body;
   const user = await findUserByLoginIdentifier({ email, phone, phoneCountryCode });
   if (!user) {
-    res.json({
-      message: "User not found",
-    });
-    return;
+    throw new AppError("User not found", 400);
   }
 
   const otp = generateLoginOtp();
@@ -309,6 +308,7 @@ exports.sendLoginOtp = asyncHandler(async (req, res) => {
 
   // TODO: send `otp` via SMS (phone) or email provider instead of returning it.
   res.json({
+    status: true,
     message: "Login code sent.",
     otp,
   });
@@ -353,6 +353,7 @@ exports.login = asyncHandler(async (req, res) => {
   const fresh = await User.findById(user._id).select("-passwordHash");
 
   res.json({
+    status: true,
     message: "Login successful",
     user: toPublicProfile(fresh),
     token,
@@ -367,11 +368,10 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({ email: String(email).toLowerCase() });
   if (!user) {
-    res.json({
-      message:
-        "If an account exists for that email, password reset instructions have been sent.",
-    });
-    return;
+    throw new AppError(
+      "If an account exists for that email, password reset instructions have been sent.",
+      400
+    );
   }
 
   const resetToken = crypto.randomBytes(32).toString("hex");
@@ -380,6 +380,7 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
   await user.save();
 
   res.json({
+    status: true,
     message:
       "If an account exists for that email, password reset instructions have been sent.",
     resetToken: process.env.NODE_ENV === "development" ? resetToken : undefined,
@@ -406,11 +407,11 @@ exports.resetPassword = asyncHandler(async (req, res) => {
   user.resetPasswordExpire = undefined;
   await user.save();
 
-  res.json({ message: "Password has been reset" });
+  res.json({ status: true, message: "Password has been reset" });
 });
 
 exports.getMe = asyncHandler(async (req, res) => {
-  res.json({ user: toPublicProfile(req.user) });
+  res.json({ status: true, user: toPublicProfile(req.user) });
 });
 
 exports.updateMe = asyncHandler(async (req, res) => {
@@ -526,7 +527,8 @@ exports.updateMe = asyncHandler(async (req, res) => {
   await user.save();
   const fresh = await User.findById(user._id).select("-passwordHash");
   res.json({
-    message: "Profile updated",
+    status: true,
+    message: "Profile updated successfully",
     user: toPublicProfile(fresh),
   });
 });
@@ -538,5 +540,5 @@ exports.deleteMe = asyncHandler(async (req, res) => {
   }
   deleteUploadFileByPublicUrl(user.profileImage);
   await User.findByIdAndDelete(req.user._id);
-  res.json({ message: "Account deleted" });
+  res.json({ status: true, message: "Account deleted successfully" });
 });

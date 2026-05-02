@@ -37,6 +37,8 @@ exports.listBanners = asyncHandler(async (req, res) => {
   ]);
 
   res.json({
+    status: true,
+    message: "Banners fetched",
     banners,
     pagination: {
       page,
@@ -51,7 +53,7 @@ exports.getBannerById = asyncHandler(async (req, res) => {
   assertObjectId(req.params.id);
   const banner = await Banner.findById(req.params.id).lean();
   if (!banner) throw new AppError("Banner not found", 404);
-  res.json({ banner });
+  res.json({ status: true, message: "Banner fetched", banner });
 });
 
 exports.createBanner = asyncHandler(async (req, res) => {
@@ -76,7 +78,7 @@ exports.createBanner = asyncHandler(async (req, res) => {
       status,
     });
 
-    res.status(201).json({ message: "Banner created", banner });
+    res.status(201).json({ status: true, message: "Banner created", banner });
   } catch (error) {
     deleteUploadFileByPublicUrl(imageFromFile);
     throw error;
@@ -119,7 +121,7 @@ exports.updateBanner = asyncHandler(async (req, res) => {
   }
 
   await banner.save();
-  res.json({ message: "Banner updated", banner });
+  res.json({ status: true, message: "Banner updated", banner });
 });
 
 exports.deleteBanner = asyncHandler(async (req, res) => {
@@ -129,5 +131,5 @@ exports.deleteBanner = asyncHandler(async (req, res) => {
 
   deleteUploadFileByPublicUrl(banner.image);
   await Banner.findByIdAndDelete(banner._id);
-  res.json({ message: "Banner deleted" });
+  res.json({ status: true, message: "Banner deleted" });
 });

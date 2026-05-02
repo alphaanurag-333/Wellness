@@ -38,6 +38,8 @@ exports.listHealthConcerns = asyncHandler(async (req, res) => {
   ]);
 
   res.json({
+    status: true,
+    message: "Health concerns fetched",
     healthConcerns,
     pagination: {
       page,
@@ -52,7 +54,7 @@ exports.getHealthConcernById = asyncHandler(async (req, res) => {
   assertObjectId(req.params.id);
   const healthConcern = await HealthConcern.findById(req.params.id).lean();
   if (!healthConcern) throw new AppError("Health concern not found", 404);
-  res.json({ healthConcern });
+  res.json({ status: true, message: "Health concern fetched", healthConcern });
 });
 
 exports.createHealthConcern = asyncHandler(async (req, res) => {
@@ -78,7 +80,7 @@ exports.createHealthConcern = asyncHandler(async (req, res) => {
       icon,
       status,
     });
-    res.status(201).json({ message: "Health concern created", healthConcern });
+    res.status(201).json({ status: true, message: "Health concern created", healthConcern });
   } catch (error) {
     deleteUploadFileByPublicUrl(iconFromFile);
     throw error;
@@ -127,7 +129,7 @@ exports.updateHealthConcern = asyncHandler(async (req, res) => {
   }
 
   await healthConcern.save();
-  res.json({ message: "Health concern updated", healthConcern });
+  res.json({ status: true, message: "Health concern updated", healthConcern });
 });
 
 exports.deleteHealthConcern = asyncHandler(async (req, res) => {
@@ -137,5 +139,5 @@ exports.deleteHealthConcern = asyncHandler(async (req, res) => {
 
   deleteUploadFileByPublicUrl(healthConcern.icon);
   await HealthConcern.findByIdAndDelete(healthConcern._id);
-  res.json({ message: "Health concern deleted" });
+  res.json({ status: true, message: "Health concern deleted" });
 });
